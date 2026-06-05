@@ -63,42 +63,7 @@ Provide extremely detailed bulleted notes that capture ALL important information
 
 ## Things NI SW Customer Success Should Take Note Of
 
-Analyze the transcript through the lens of the five Pillars of Account Health. For each pillar, extract every relevant detail mentioned — do not omit anything. If a pillar has no relevant information from this transcript, write "Nothing noted." Use sub-bullets freely for specifics.
-
-### Proficiency & Self Service
-*Strategy to build NI tool skill, self-service capabilities, scaling enablement*
-Actions to consider: Proficiency plans for new/experienced users · Embedding NI collateral into account L&D · NI in onboarding process
-
-- [bullet every relevant detail from the transcript]
-
-### Adoption
-*Opportunities to drive new users and new products into successful use*
-Actions to consider: Hypercare for SW evaluations/pilots · SW deployment strategies w/ sponsors · Access enablement customization · Support & case trend response
-
-- [bullet every relevant detail from the transcript]
-
-### Sponsors & End Users
-*Relationships being built, trust and closeness with key people*
-Actions to consider: Engagement strategy for sponsors w/ influence · End-user insight capture & outreach · Cadence for travel, meetings, comms
-
-- [bullet every relevant detail from the transcript]
-
-### Expansion
-*Portfolio whitespace — what the customer isn't using and why*
-Actions to consider: Whitespace assessment & expansion strategy · Investigation of expansion areas · NI success collateral for account growth
-
-- [bullet every relevant detail from the transcript]
-
-### Renewal Readiness
-*Risks and opportunities before the next EA/VLA renewal*
-Actions to consider: Risk identification & active management · Equip SSMs with renewal negotiation points · Leverage sponsor relationships to reduce risk/churn
-
-- [bullet every relevant detail from the transcript]
-
-### Overall CS Score
-*How healthy is this account's CS posture right now?*
-
-Provide a G/Y/R (Green/Yellow/Red) assessment with a 2-3 sentence rationale based on what was discussed in this meeting.
+Flag anything relevant to NI Software's Customer Success team — do not filter by pillar or category, just capture everything worth knowing. Include: adoption signals (positive or negative), product usage concerns, customer frustrations or praise, risks to renewal or expansion, unanswered questions about NI tools, opportunities for CS to get involved or follow up, and any commitment or promise made to the customer. Be specific and thorough.
 
 ---
 
