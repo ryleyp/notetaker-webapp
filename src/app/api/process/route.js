@@ -17,6 +17,7 @@ Categories to check:
 - Software / Dev languages & tools: python, c, c-plus-plus, matlab, java, javascript, typescript, dotnet, rust, sql, r, julia, simulink, etc.
 - Other tools or platforms mentioned prominently (e.g. github, azure, aws, jira, confluence, salesforce)
 - Accounts / customers: lockheed, northrop, frontgrade, l3harris — and any other company or customer name that is clearly a customer or account being discussed
+- Lockheed divisions (only if explicitly called out): rms, mfc, space
 - CS program terms: proficiencyplan, flexcredits, snowsupport, enterpriseagreement — tag if these programs or concepts are explicitly discussed
 
 Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
