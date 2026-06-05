@@ -18,6 +18,8 @@ Categories to check:
 - Other tools or platforms mentioned prominently (e.g. github, azure, aws, jira, confluence, salesforce)
 - Accounts / customers: lockheed, northrop, frontgrade, l3harris — and any other company or customer name that is clearly a customer or account being discussed
 - Lockheed divisions (only if explicitly called out): rms, mfc, space
+- Northrop Grumman divisions (only if explicitly called out): aeronautics, defensesystems, missionsystems, space
+- L3Harris divisions (only if explicitly called out): sms (Space and Mission Systems), csd (Communications and Spectrum Dominance), msl (Missile Solutions)
 - CS program terms: proficiencyplan, flexcredits, snowsupport, enterpriseagreement — tag if these programs or concepts are explicitly discussed
 
 Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
