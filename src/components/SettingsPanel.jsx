@@ -6,7 +6,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
   const [form, setForm] = useState({
     vaultPath: settings.vaultPath || "",
     apiKey: settings.apiKey || "",
-    model: settings.model || "claude-sonnet-4-6",
+    model: settings.model || "claude-haiku-4-5",
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);

@@ -18,7 +18,7 @@ export default function Home() {
   const [meetingTitle, setMeetingTitle] = useState("");
   const [transcript, setTranscript] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
-  const [model, setModel] = useState("claude-sonnet-4-6");
+  const [model, setModel] = useState("claude-haiku-4-5");
   const [processing, setProcessing] = useState(false);
   const [processError, setProcessError] = useState(null);
   const [notes, setNotes] = useState("");
