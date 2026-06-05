@@ -21,6 +21,7 @@ Categories to check:
 - Northrop Grumman divisions (only if explicitly called out): aeronautics, defensesystems, missionsystems, space
 - L3Harris divisions (only if explicitly called out): sms (Space and Mission Systems), csd (Communications and Spectrum Dominance), msl (Missile Solutions)
 - CS program terms: proficiencyplan, flexcredits, snowsupport, enterpriseagreement — tag if these programs or concepts are explicitly discussed
+- Training: tag as proficiencyplans if training, onboarding, skill-building, or learning resources for NI tools are discussed
 
 Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
 
