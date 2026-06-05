@@ -38,9 +38,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Target folder is outside vault" }, { status: 403 });
     }
 
-    const date = meetingDate || new Date().toISOString().split("T")[0];
     const title = sanitizeFilename(meetingTitle || "Meeting Notes");
-    const filename = `${date} - ${title}.md`;
+    const filename = `${title}.md`;
     const filePath = path.join(targetDir, filename);
 
     // Don't overwrite existing files — append a number

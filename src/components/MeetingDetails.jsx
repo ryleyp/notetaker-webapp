@@ -1,44 +1,33 @@
 "use client";
 
-export default function MeetingDetails({ meetingTitle, setMeetingTitle, meetingDate, setMeetingDate }) {
+export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
   return (
     <div className="card p-6">
       <div className="flex items-center gap-3 mb-5">
         <StepBadge n={1} />
         <div>
           <h2 className="text-base font-semibold text-gray-900">Meeting Details</h2>
-          <p className="text-xs text-gray-500">Give your notes a title and date</p>
+          <p className="text-xs text-gray-500">Give your notes a title (include the date in the title)</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="label">Meeting Title</label>
-          <input
-            type="text"
-            className="input"
-            placeholder="e.g. Q3 Product Review"
-            value={meetingTitle}
-            onChange={(e) => setMeetingTitle(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div>
-          <label className="label">Meeting Date</label>
-          <input
-            type="date"
-            className="input"
-            value={meetingDate}
-            onChange={(e) => setMeetingDate(e.target.value)}
-          />
-        </div>
+      <div>
+        <label className="label">Meeting Title</label>
+        <input
+          type="text"
+          className="input"
+          placeholder="e.g. 2026-06-05 - Lockheed Kickoff"
+          value={meetingTitle}
+          onChange={(e) => setMeetingTitle(e.target.value)}
+          autoFocus
+        />
       </div>
 
       {meetingTitle && (
         <p className="mt-3 text-xs text-gray-400">
           File will be saved as{" "}
           <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
-            {meetingDate} - {meetingTitle}.md
+            {meetingTitle}.md
           </span>
         </p>
       )}

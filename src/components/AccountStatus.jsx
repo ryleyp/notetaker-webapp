@@ -87,8 +87,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           notes: output,
           vaultPath: settings.vaultPath,
           folderPath: selectedFolder,
-          meetingTitle: "Account Status",
-          meetingDate: TODAY,
+          meetingTitle: `Account Status ${TODAY}`,
         }),
       });
       const data = await res.json();

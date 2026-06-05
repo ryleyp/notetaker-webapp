@@ -9,8 +9,6 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
 
-const DEFAULT_DATE = new Date().toISOString().split("T")[0];
-
 export default function Home() {
   const [mode, setMode] = useState("new"); // "new" | "status"
   const [showSettings, setShowSettings] = useState(false);
@@ -18,7 +16,6 @@ export default function Home() {
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
-  const [meetingDate, setMeetingDate] = useState(DEFAULT_DATE);
   const [transcript, setTranscript] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -68,7 +65,6 @@ export default function Home() {
         body: JSON.stringify({
           transcript,
           meetingTitle,
-          meetingDate,
           apiKey: settings.apiKey || undefined,
           model: settings.model || undefined,
         }),
@@ -95,7 +91,6 @@ export default function Home() {
           vaultPath: settings.vaultPath,
           folderPath: selectedFolder,
           meetingTitle,
-          meetingDate,
         }),
       });
       const data = await res.json();
@@ -112,7 +107,6 @@ export default function Home() {
   function handleNewNote() {
     setTranscript("");
     setMeetingTitle("");
-    setMeetingDate(DEFAULT_DATE);
     setNotes("");
     setSaved(false);
     setSavedPath("");
@@ -173,8 +167,6 @@ export default function Home() {
               <MeetingDetails
                 meetingTitle={meetingTitle}
                 setMeetingTitle={setMeetingTitle}
-                meetingDate={meetingDate}
-                setMeetingDate={setMeetingDate}
               />
 
               <TranscriptInput

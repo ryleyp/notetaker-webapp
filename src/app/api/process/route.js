@@ -17,17 +17,16 @@ Categories to check:
 - Software / Dev languages & tools: python, c, c-plus-plus, matlab, java, javascript, typescript, dotnet, rust, sql, r, julia, simulink, etc.
 - Other tools or platforms mentioned prominently (e.g. github, azure, aws, jira, confluence, salesforce)
 - Accounts / customers: lockheed, northrop, frontgrade, l3harris — and any other company or customer name that is clearly a customer or account being discussed
+- CS program terms: proficiencyplan, flexcredits, snowsupport, enterpriseagreement — tag if these programs or concepts are explicitly discussed
 
 Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
 
-function buildPrompt(transcript, meetingTitle, meetingDate) {
-  const date = meetingDate || new Date().toISOString().split("T")[0];
+function buildPrompt(transcript, meetingTitle) {
   const title = meetingTitle || "Meeting Notes";
 
   return `Please analyze this meeting transcript and create detailed meeting notes.
 
 Meeting Title: ${title}
-Meeting Date: ${date}
 
 ---
 TRANSCRIPT:
@@ -38,7 +37,7 @@ ${TAG_CATEGORIES}
 
 Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML frontmatter block.
 
-# ${date} - ${title}
+# ${title}
 
 <tag line: list extracted tags inline as #tag1 #tag2 #tag3>
 
@@ -77,7 +76,7 @@ List the agreed-upon next steps, upcoming milestones, follow-up meetings, or pla
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { transcript, meetingTitle, meetingDate, apiKey, model } = body;
+    const { transcript, meetingTitle, apiKey, model } = body;
 
     if (!transcript || transcript.trim().length === 0) {
       return NextResponse.json({ error: "Transcript is required" }, { status: 400 });
@@ -100,7 +99,7 @@ export async function POST(request) {
       messages: [
         {
           role: "user",
-          content: buildPrompt(transcript, meetingTitle, meetingDate),
+          content: buildPrompt(transcript, meetingTitle),
         },
       ],
     });
