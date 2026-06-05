@@ -212,8 +212,8 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden flex-shrink-0">
                   {[
-                    { id: "claude-sonnet-4-6", label: "Sonnet", sub: "~$0.10" },
                     { id: "claude-haiku-4-5", label: "Haiku", sub: "~$0.03" },
+                    { id: "claude-sonnet-4-6", label: "Sonnet", sub: "~$0.10" },
                   ].map((m) => (
                     <button
                       key={m.id}
