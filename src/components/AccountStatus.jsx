@@ -62,6 +62,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
         body: JSON.stringify({
           notes: loadedNotes,
           apiKey: settings.apiKey || undefined,
+          model: settings.model || undefined,
           today: TODAY,
         }),
       });

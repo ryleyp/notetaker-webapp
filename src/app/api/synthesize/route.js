@@ -62,7 +62,7 @@ Based on open action items and trends, list the highest-priority next steps for 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, today } = body;
+    const { notes, apiKey, model, today } = body;
 
     if (!notes || notes.length === 0) {
       return NextResponse.json({ error: "No notes provided" }, { status: 400 });
@@ -79,7 +79,7 @@ export async function POST(request) {
     const client = new Anthropic({ apiKey: key });
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: model || "claude-sonnet-4-6",
       max_tokens: 8192,
       system:
         "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",

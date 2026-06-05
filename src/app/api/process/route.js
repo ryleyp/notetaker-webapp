@@ -81,7 +81,7 @@ List the agreed-upon next steps, upcoming milestones, follow-up meetings, or pla
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { transcript, meetingTitle, meetingDate, apiKey } = body;
+    const { transcript, meetingTitle, meetingDate, apiKey, model } = body;
 
     if (!transcript || transcript.trim().length === 0) {
       return NextResponse.json({ error: "Transcript is required" }, { status: 400 });
@@ -98,7 +98,7 @@ export async function POST(request) {
     const client = new Anthropic({ apiKey: key });
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: model || "claude-sonnet-4-6",
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [

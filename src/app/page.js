@@ -70,6 +70,7 @@ export default function Home() {
           meetingTitle,
           meetingDate,
           apiKey: settings.apiKey || undefined,
+          model: settings.model || undefined,
         }),
       });
       const data = await res.json();
