@@ -19,7 +19,7 @@ ${noteBlocks}
 
 ---
 
-Generate an Account Status document using EXACTLY this structure. Be specific and concrete — reference actual names, dates, decisions, and items from the notes. Do not be generic.
+Generate an Account Status document using EXACTLY this structure. Be specific and concrete — reference actual names, dates, decisions, and items from the notes. Do not be generic. Do not omit any detail.
 
 # Account Status — ${rangeLabel}
 
@@ -29,7 +29,7 @@ Generate an Account Status document using EXACTLY this structure. Be specific an
 
 ## Recent Highlights
 
-Key decisions, outcomes, and notable updates from the past quarter. Group by theme or project if patterns emerge. Use bullets.
+Key decisions, outcomes, and notable updates from the past quarter. Group by theme or project if patterns emerge. Include all specifics — names, dates, numbers. Use bullets with sub-bullets for detail.
 
 ---
 
@@ -42,21 +42,56 @@ If an item appears resolved in a later note, omit it.
 
 ---
 
+## Pillars of Account Health
+
+Synthesize insights from all notes across the five pillars. For each pillar, include every relevant detail — do not summarize away specifics. Use sub-bullets. If a pillar has no relevant information across the quarter, write "Nothing noted."
+
+### Proficiency & Self Service
+*Strategy to build NI tool skill, self-service capabilities, scaling enablement*
+Actions to consider: Proficiency plans for new/experienced users · Embedding NI collateral into account L&D · NI in onboarding process
+
+- [all relevant details from across all notes]
+
+### Adoption
+*Opportunities to drive new users and new products into successful use*
+Actions to consider: Hypercare for SW evaluations/pilots · SW deployment strategies w/ sponsors · Access enablement customization · Support & case trend response
+
+- [all relevant details from across all notes]
+
+### Sponsors & End Users
+*Relationships being built, trust and closeness with key people*
+Actions to consider: Engagement strategy for sponsors w/ influence · End-user insight capture & outreach · Cadence for travel, meetings, comms
+
+- [all relevant details from across all notes]
+
+### Expansion
+*Portfolio whitespace — what the customer isn't using and why*
+Actions to consider: Whitespace assessment & expansion strategy · Investigation of expansion areas · NI success collateral for account growth
+
+- [all relevant details from across all notes]
+
+### Renewal Readiness
+*Risks and opportunities before the next EA/VLA renewal*
+Actions to consider: Risk identification & active management · Equip SSMs with renewal negotiation points · Leverage sponsor relationships to reduce risk/churn
+
+- [all relevant details from across all notes]
+
+### Overall CS Score
+*How healthy is this account's CS posture right now?*
+
+Provide a G/Y/R (Green/Yellow/Red) assessment with a 3-5 sentence rationale synthesizing the quarter's data across all five pillars.
+
+---
+
 ## Key Themes & Trends
 
 3–5 bullet points identifying recurring topics, patterns, risks, or concerns that appear across multiple meetings.
 
 ---
 
-## NI SW Customer Success Watch Items
-
-All items relevant to the Customer Success team — customer concerns, commitments, escalations, product issues, feedback trends — aggregated across the quarter.
-
----
-
 ## Recommended Next Steps
 
-Based on open action items and trends, list the highest-priority next steps for the coming weeks in priority order.`;
+Based on open action items, pillar gaps, and trends, list the highest-priority next steps for the coming weeks in priority order.`;
 }
 
 export async function POST(request) {
