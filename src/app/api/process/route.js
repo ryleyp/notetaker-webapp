@@ -57,13 +57,13 @@ Write 3-5 concise sentences capturing the overall purpose, key outcomes, and mos
 
 ## Meeting Notes
 
-Provide extremely detailed bulleted notes that capture ALL important information from the transcript. Do not skip any significant point. Use sub-bullets for details. Organize by topic when appropriate. If someone makes a notable statement, quote or closely paraphrase it.
+Provide thorough bulleted notes that capture all important information from the transcript. Focus on decisions, key points, and meaningful details — skip filler, repetition, and tangential remarks. Use sub-bullets for important specifics. Organize by topic when appropriate. Quote or closely paraphrase notable statements.
 
 ---
 
 ## Things NI SW Customer Success Should Take Note Of
 
-Flag anything relevant to NI Software's Customer Success team — do not filter by pillar or category, just capture everything worth knowing. Include: adoption signals (positive or negative), product usage concerns, customer frustrations or praise, risks to renewal or expansion, unanswered questions about NI tools, opportunities for CS to get involved or follow up, and any commitment or promise made to the customer. Be specific and thorough.
+Flag the most important items for NI Software's Customer Success team. Include: adoption signals, product usage concerns, customer frustrations or praise, risks to renewal or expansion, opportunities for CS to engage, and any commitments made to the customer. Be concise — one clear bullet per point, no filler.
 
 ---
 
