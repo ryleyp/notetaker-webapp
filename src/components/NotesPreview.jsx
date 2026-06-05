@@ -66,7 +66,7 @@ function formatInline(text) {
     .replace(/`(.+?)`/g, "<code>$1</code>");
 }
 
-export default function NotesPreview({ notes, onSave, saving, saved, savedPath }) {
+export default function NotesPreview({ notes, onSave, saving, saved, savedPath, streaming }) {
   const [viewMode, setViewMode] = useState("preview");
 
   const copyToClipboard = () => {
@@ -76,7 +76,18 @@ export default function NotesPreview({ notes, onSave, saving, saved, savedPath }
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <h2 className="section-header mb-0">Generated Notes</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="section-header mb-0">Generated Notes</h2>
+          {streaming && (
+            <span className="flex items-center gap-1 text-xs text-obsidian-600 font-medium">
+              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Generating...
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden">
             <button
@@ -131,7 +142,7 @@ export default function NotesPreview({ notes, onSave, saving, saved, savedPath }
 
         <button
           onClick={onSave}
-          disabled={saving || saved}
+          disabled={saving || saved || streaming}
           className="btn-success whitespace-nowrap"
         >
           {saving ? (

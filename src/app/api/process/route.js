@@ -92,26 +92,36 @@ export async function POST(request) {
 
     const client = new Anthropic({ apiKey: key });
 
-    const message = await client.messages.create({
+    const stream = client.messages.stream({
       model: model || "claude-sonnet-4-6",
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: buildPrompt(transcript, meetingTitle),
-        },
-      ],
+      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle) }],
     });
 
-    const notes = message.content[0]?.text || "";
-    const usage = message.usage;
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+              controller.enqueue(new TextEncoder().encode(chunk.delta.text));
+            }
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      },
+    });
 
-    return NextResponse.json({ notes, usage });
+    return new Response(readable, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   } catch (error) {
     console.error("Error processing transcript:", error);
-    const message = error?.message || "Failed to process transcript";
-    const status = error?.status || 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: error?.message || "Failed to process transcript" },
+      { status: error?.status || 500 }
+    );
   }
 }

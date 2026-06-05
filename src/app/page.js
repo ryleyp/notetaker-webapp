@@ -71,9 +71,19 @@ export default function Home() {
           model,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Processing failed");
-      setNotes(data.notes);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Processing failed");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setNotes(full);
+      }
     } catch (e) {
       setProcessError(e.message);
     } finally {
@@ -162,6 +172,7 @@ export default function Home() {
                 saving={saving}
                 saved={saved}
                 savedPath={savedPath}
+                streaming={processing}
               />
             </div>
           ) : (
