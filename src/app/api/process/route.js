@@ -43,7 +43,7 @@ date: ${date}
 tags: [<comma-separated list of extracted tags, lowercase>]
 ---
 
-# ${title} — ${date}
+# ${date} - ${title}
 
 <tag line: repeat tags inline as #tag1 #tag2 #tag3 — same tags as frontmatter>
 
