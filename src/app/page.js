@@ -18,6 +18,7 @@ export default function Home() {
   const [meetingTitle, setMeetingTitle] = useState("");
   const [transcript, setTranscript] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
+  const [model, setModel] = useState("claude-sonnet-4-6");
   const [processing, setProcessing] = useState(false);
   const [processError, setProcessError] = useState(null);
   const [notes, setNotes] = useState("");
@@ -31,6 +32,7 @@ export default function Home() {
       if (stored) {
         const parsed = JSON.parse(stored);
         setSettings(parsed);
+        if (parsed.model) setModel(parsed.model);
         if (!parsed.vaultPath) setShowSettings(true);
       } else {
         setShowSettings(true);
@@ -66,7 +68,7 @@ export default function Home() {
           transcript,
           meetingTitle,
           apiKey: settings.apiKey || undefined,
-          model: settings.model || undefined,
+          model,
         }),
       });
       const data = await res.json();
@@ -196,28 +198,49 @@ export default function Home() {
                 </div>
               )}
 
-              <button
-                onClick={handleProcess}
-                disabled={!canProcess}
-                className="btn-primary w-full py-3.5 text-base"
-              >
-                {processing ? (
-                  <>
-                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Analyzing transcript with Claude Sonnet...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    Generate Meeting Notes
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden flex-shrink-0">
+                  {[
+                    { id: "claude-sonnet-4-6", label: "Sonnet", sub: "~$0.10" },
+                    { id: "claude-haiku-4-5", label: "Haiku", sub: "~$0.03" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setModel(m.id)}
+                      className={`px-3 py-2 text-left transition-colors ${
+                        model === m.id ? "bg-obsidian-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="text-xs font-medium leading-tight">{m.label}</div>
+                      <div className={`text-xs leading-tight ${model === m.id ? "text-obsidian-200" : "text-gray-400"}`}>{m.sub}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleProcess}
+                  disabled={!canProcess}
+                  className="btn-primary flex-1 py-3.5 text-base"
+                >
+                  {processing ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Analyzing with Claude {model.includes("haiku") ? "Haiku" : "Sonnet"}...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Generate Meeting Notes
+                    </>
+                  )}
+                </button>
+              </div>
             </>
           )
         )}
