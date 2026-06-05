@@ -36,16 +36,11 @@ ${transcript}
 
 ${TAG_CATEGORIES}
 
-Generate the meeting notes with EXACTLY this structure. Start with the YAML frontmatter block.
-
----
-date: ${date}
-tags: [<comma-separated list of extracted tags, lowercase>]
----
+Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML frontmatter block.
 
 # ${date} - ${title}
 
-<tag line: repeat tags inline as #tag1 #tag2 #tag3 — same tags as frontmatter>
+<tag line: list extracted tags inline as #tag1 #tag2 #tag3>
 
 ---
 

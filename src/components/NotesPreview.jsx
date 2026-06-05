@@ -7,31 +7,16 @@ function renderMarkdown(text) {
   const result = [];
   let i = 0;
 
-  // Skip YAML frontmatter block — render it as a styled tag summary instead
-  if (lines[0] === "---") {
-    const closeIdx = lines.indexOf("---", 1);
-    if (closeIdx !== -1) {
-      const frontmatter = lines.slice(1, closeIdx).join("\n");
-      const tagsMatch = frontmatter.match(/^tags:\s*\[(.+)\]/m);
-      if (tagsMatch) {
-        const tags = tagsMatch[1].split(",").map((t) => t.trim()).filter(Boolean);
-        if (tags.length > 0) {
-          const tagPills = tags
-            .map((t) => `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-obsidian-100 text-obsidian-700 mr-1 mb-1">#${escapeHtml(t)}</span>`)
-            .join("");
-          result.push(`<div class="flex flex-wrap mb-2">${tagPills}</div>`);
-        }
-      }
-      i = closeIdx + 1;
-    }
-  }
-
   while (i < lines.length) {
     const line = lines[i];
 
     // Inline tag line (e.g. "#austin #texas") — render as pills
     if (/^(#[a-z][a-z0-9-]*\s*)+$/i.test(line.trim()) && line.trim().startsWith("#")) {
-      // Already rendered from frontmatter — skip the duplicate inline tag line
+      const tags = line.trim().split(/\s+/).map((t) => t.slice(1)).filter(Boolean);
+      const tagPills = tags
+        .map((t) => `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-obsidian-100 text-obsidian-700 mr-1 mb-1">#${escapeHtml(t)}</span>`)
+        .join("");
+      result.push(`<div class="flex flex-wrap mb-2">${tagPills}</div>`);
       i++;
       continue;
     }
