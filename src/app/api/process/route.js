@@ -7,20 +7,44 @@ Your notes must be extremely thorough — do not omit any important information,
 
 Always respond with ONLY the Markdown content, no preamble or explanation.`;
 
+const TAG_CATEGORIES = `
+Extract tags ONLY if explicitly mentioned in the transcript. Use lowercase, no spaces (use hyphens for multi-word).
+
+Categories to check:
+- Cities: austin, dallas, houston, denver, seattle, chicago, boston, san-francisco, new-york, nashville, atlanta, phoenix, minneapolis, raleigh, detroit, los-angeles, portland, columbus, indianapolis, etc.
+- US States: texas, colorado, washington, california, illinois, massachusetts, ohio, georgia, michigan, tennessee, north-carolina, florida, arizona, minnesota, oregon, etc.
+- NI Software: systemlink, labview, teststand, diadem, flexlogger, veristand, ni-daqmx, labwindows-cvi, measurement-studio, ni-visa, opentestbed, etc.
+- Software / Dev languages & tools: python, c, c-plus-plus, matlab, java, javascript, typescript, dotnet, rust, sql, r, julia, simulink, etc.
+- Other tools or platforms mentioned prominently (e.g. github, azure, aws, jira, confluence, salesforce)
+
+Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
+
 function buildPrompt(transcript, meetingTitle, meetingDate) {
+  const date = meetingDate || new Date().toISOString().split("T")[0];
+  const title = meetingTitle || "Meeting Notes";
+
   return `Please analyze this meeting transcript and create detailed meeting notes.
 
-Meeting Title: ${meetingTitle || "Meeting"}
-Meeting Date: ${meetingDate || new Date().toISOString().split("T")[0]}
+Meeting Title: ${title}
+Meeting Date: ${date}
 
 ---
 TRANSCRIPT:
 ${transcript}
 ---
 
-Generate meeting notes with EXACTLY these five sections in this order:
+${TAG_CATEGORIES}
 
-# ${meetingTitle || "Meeting Notes"} — ${meetingDate || new Date().toISOString().split("T")[0]}
+Generate the meeting notes with EXACTLY this structure. Start with the YAML frontmatter block.
+
+---
+date: ${date}
+tags: [<comma-separated list of extracted tags, lowercase>]
+---
+
+# ${title} — ${date}
+
+<tag line: repeat tags inline as #tag1 #tag2 #tag3 — same tags as frontmatter>
 
 ---
 
