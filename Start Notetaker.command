@@ -22,8 +22,8 @@ if [ -z "$NPM" ]; then
   exit 1
 fi
 
-# If already running, just open the browser
-if lsof -ti:3000 > /dev/null 2>&1; then
+# If already running and responding, just open the browser
+if curl -s --max-time 2 http://localhost:3000 > /dev/null 2>&1; then
   echo "Server already running — opening browser..."
   open "http://localhost:3000"
   exit 0
