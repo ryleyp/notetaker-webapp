@@ -127,7 +127,7 @@ export async function POST(request) {
     });
 
     const output = message.content[0]?.text || "";
-    return NextResponse.json({ output, noteCount: notes.length });
+    return NextResponse.json({ output, noteCount: notes.length, usage: message.usage, model: model || "claude-sonnet-4-6" });
   } catch (error) {
     console.error("Synthesis error:", error);
     return NextResponse.json(

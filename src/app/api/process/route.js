@@ -111,6 +111,11 @@ export async function POST(request) {
               controller.enqueue(new TextEncoder().encode(chunk.delta.text));
             }
           }
+          // Append usage as a tagged footer after all content
+          const finalMsg = await stream.finalMessage();
+          controller.enqueue(
+            new TextEncoder().encode(`\n__USAGE__${JSON.stringify(finalMsg.usage)}`)
+          );
           controller.close();
         } catch (err) {
           controller.error(err);

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
+import { calcCost } from "@/lib/pricing";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -25,6 +26,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savedPath, setSavedPath] = useState("");
+  const [synthCost, setSynthCost] = useState(null);
 
   async function handleLoadNotes() {
     if (!settings.vaultPath) return;
@@ -69,6 +71,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Synthesis failed");
       setOutput(data.output);
+      if (data.usage) setSynthCost(calcCost(data.usage, data.model));
     } catch (e) {
       setSynthError(e.message);
     } finally {
@@ -233,6 +236,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             saving={saving}
             saved={saved}
             savedPath={savedPath}
+            cost={synthCost}
           />
         </div>
       )}

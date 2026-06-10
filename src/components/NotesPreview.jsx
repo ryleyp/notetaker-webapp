@@ -66,7 +66,9 @@ function formatInline(text) {
     .replace(/`(.+?)`/g, "<code>$1</code>");
 }
 
-export default function NotesPreview({ notes, onSave, saving, saved, savedPath, streaming, todosSaved }) {
+import { formatCost } from "@/lib/pricing";
+
+export default function NotesPreview({ notes, onSave, saving, saved, savedPath, streaming, todosSaved, cost }) {
   const [viewMode, setViewMode] = useState("preview");
 
   const copyToClipboard = () => {
@@ -76,8 +78,11 @@ export default function NotesPreview({ notes, onSave, saving, saved, savedPath, 
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h2 className="section-header mb-0">Generated Notes</h2>
+          {cost && !streaming && (
+            <span className="text-xs text-gray-400 font-mono">{formatCost(cost)}</span>
+          )}
           {streaming && (
             <span className="flex items-center gap-1 text-xs text-obsidian-600 font-medium">
               <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">

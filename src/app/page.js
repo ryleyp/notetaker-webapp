@@ -10,6 +10,7 @@ import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
 import SanitizeReview from "@/components/SanitizeReview";
 import { applyReplacements, reverseReplacements, assignAliases } from "@/lib/sanitize";
+import { calcCost, formatCost } from "@/lib/pricing";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
@@ -35,6 +36,7 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [savedPath, setSavedPath] = useState("");
   const [todosSaved, setTodosSaved] = useState(null); // { count, path } | null
+  const [noteCost, setNoteCost] = useState(null);
 
   useEffect(() => {
     try {
@@ -164,12 +166,22 @@ export default function Home() {
         const { done, value } = await reader.read();
         if (done) break;
         full += decoder.decode(value, { stream: true });
-        setNotes(full);
+        // Strip usage footer while streaming so it doesn't flash on screen
+        const usageIdx = full.indexOf("\n__USAGE__");
+        setNotes(usageIdx !== -1 ? full.slice(0, usageIdx) : full);
+      }
+      // Extract usage footer
+      const usageIdx = full.indexOf("\n__USAGE__");
+      if (usageIdx !== -1) {
+        try {
+          const usage = JSON.parse(full.slice(usageIdx + 10));
+          setNoteCost(calcCost(usage, model));
+        } catch {}
+        full = full.slice(0, usageIdx);
       }
       // Restore real names after stream completes
-      if (replacements.length) {
-        setNotes(reverseReplacements(full, replacements));
-      }
+      if (replacements.length) full = reverseReplacements(full, replacements);
+      setNotes(full);
     } catch (e) {
       setProcessError(e.message);
     } finally {
@@ -224,6 +236,7 @@ export default function Home() {
     setSaved(false);
     setSavedPath("");
     setTodosSaved(null);
+    setNoteCost(null);
     setProcessError(null);
     setPendingReview(null);
     setActiveReplacements([]);
@@ -278,6 +291,7 @@ export default function Home() {
                 savedPath={savedPath}
                 streaming={processing}
                 todosSaved={todosSaved}
+                cost={noteCost}
               />
             </div>
           ) : (
