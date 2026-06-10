@@ -49,23 +49,53 @@ function buildNewFile(monday, actionItems, nextSteps, meetingTitle) {
   return `# ${monday} - ToDos from Meetings\n\n## Action Items\n\n${actionBlock}\n\n## Next Steps\n\n${nextBlock}\n`.trimEnd() + "\n";
 }
 
-function appendToFile(existing, actionItems, nextSteps, meetingTitle) {
-  let content = existing.trimEnd();
+function blockDate(block) {
+  const m = block.match(/\*\*(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : "0000-00-00";
+}
 
-  if (actionItems.length > 0) {
-    const block = "\n\n" + meetingBlock(actionItems, meetingTitle);
-    if (content.includes("\n## Next Steps")) {
-      content = content.replace("\n## Next Steps", `${block}\n\n## Next Steps`);
-    } else {
-      content += block;
+// Insert a new meeting block into a section's content, newest date first
+function insertInOrder(sectionContent, newBlock, meetingTitle) {
+  const newDate = (meetingTitle.match(/(\d{4}-\d{2}-\d{2})/) || [])[1] || "0000-00-00";
+  const trimmed = sectionContent.trim();
+  if (!trimmed) return newBlock;
+
+  const blocks = trimmed.split(/\n\n(?=\*\*)/).filter((b) => b.trim());
+
+  let insertAt = blocks.length;
+  for (let i = 0; i < blocks.length; i++) {
+    if (newDate >= blockDate(blocks[i])) {
+      insertAt = i;
+      break;
     }
   }
 
-  if (nextSteps.length > 0) {
-    content += "\n\n" + meetingBlock(nextSteps, meetingTitle);
-  }
+  blocks.splice(insertAt, 0, newBlock);
+  return blocks.join("\n\n");
+}
 
-  return content + "\n";
+function parseSections(content) {
+  const actionMatch = content.match(/## Action Items\n\n?([\s\S]*?)(?=\n## Next Steps|$)/);
+  const nextMatch = content.match(/## Next Steps\n\n?([\s\S]*?)$/);
+  return {
+    actionContent: actionMatch ? actionMatch[1].trimEnd() : "",
+    nextContent: nextMatch ? nextMatch[1].trimEnd() : "",
+  };
+}
+
+function appendToFile(existing, actionItems, nextSteps, meetingTitle) {
+  const monday = existing.match(/^# (.+)\n/)?.[1] ?? "";
+  const { actionContent, nextContent } = parseSections(existing);
+
+  const newActionContent = actionItems.length
+    ? insertInOrder(actionContent, meetingBlock(actionItems, meetingTitle), meetingTitle)
+    : actionContent;
+
+  const newNextContent = nextSteps.length
+    ? insertInOrder(nextContent, meetingBlock(nextSteps, meetingTitle), meetingTitle)
+    : nextContent;
+
+  return `# ${monday}\n\n## Action Items\n\n${newActionContent}\n\n## Next Steps\n\n${newNextContent}\n`;
 }
 
 export async function POST(request) {
