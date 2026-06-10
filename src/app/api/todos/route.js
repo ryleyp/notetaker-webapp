@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-function getMondayOfWeek() {
-  const today = new Date();
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diff);
+function getMondayOfWeek(dateStr) {
+  // Week = Sunday–Saturday; file is named after that Monday
+  const date = new Date((dateStr || new Date().toISOString().split("T")[0]) + "T12:00:00");
+  const day = date.getDay(); // 0=Sun … 6=Sat
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - day);
+  const monday = new Date(sunday);
+  monday.setDate(sunday.getDate() + 1);
   return monday.toISOString().split("T")[0];
+}
+
+function extractDateFromTitle(title) {
+  const match = title && title.match(/(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
 }
 
 function extractItems(notes) {
@@ -75,7 +82,7 @@ export async function POST(request) {
     const todosDir = path.join(resolvedVault, "Todos");
     if (!fs.existsSync(todosDir)) fs.mkdirSync(todosDir, { recursive: true });
 
-    const monday = getMondayOfWeek();
+    const monday = getMondayOfWeek(extractDateFromTitle(meetingTitle));
     const filePath = path.join(todosDir, `${monday} - ToDos from Meetings.md`);
 
     const content = fs.existsSync(filePath)
