@@ -31,34 +31,31 @@ function extractItems(notes) {
   return result;
 }
 
-function buildNewFile(monday, actionItems, nextSteps, meetingTitle) {
-  const tag = `*(from: ${meetingTitle})*`;
-  const actionLines = actionItems.length
-    ? actionItems.map((l) => `${l.trimEnd()} ${tag}`).join("\n")
-    : "";
-  const nextLines = nextSteps.length
-    ? nextSteps.map((l) => `${l.trimEnd()} ${tag}`).join("\n")
-    : "";
+function meetingBlock(items, meetingTitle) {
+  return `**${meetingTitle}**\n${items.map((l) => l.trimEnd()).join("\n")}`;
+}
 
-  return `# ${monday} - ToDos from Meetings\n\n## Action Items\n\n${actionLines}\n\n## Next Steps\n\n${nextLines}\n`.trimEnd() + "\n";
+function buildNewFile(monday, actionItems, nextSteps, meetingTitle) {
+  const actionBlock = actionItems.length ? meetingBlock(actionItems, meetingTitle) : "";
+  const nextBlock = nextSteps.length ? meetingBlock(nextSteps, meetingTitle) : "";
+
+  return `# ${monday} - ToDos from Meetings\n\n## Action Items\n\n${actionBlock}\n\n## Next Steps\n\n${nextBlock}\n`.trimEnd() + "\n";
 }
 
 function appendToFile(existing, actionItems, nextSteps, meetingTitle) {
-  const tag = `*(from: ${meetingTitle})*`;
   let content = existing.trimEnd();
 
   if (actionItems.length > 0) {
-    const lines = actionItems.map((l) => `${l.trimEnd()} ${tag}`).join("\n");
+    const block = "\n\n" + meetingBlock(actionItems, meetingTitle);
     if (content.includes("\n## Next Steps")) {
-      content = content.replace("\n## Next Steps", `\n${lines}\n\n## Next Steps`);
+      content = content.replace("\n## Next Steps", `${block}\n\n## Next Steps`);
     } else {
-      content += "\n" + lines;
+      content += block;
     }
   }
 
   if (nextSteps.length > 0) {
-    const lines = nextSteps.map((l) => `${l.trimEnd()} ${tag}`).join("\n");
-    content += "\n" + lines;
+    content += "\n\n" + meetingBlock(nextSteps, meetingTitle);
   }
 
   return content + "\n";
