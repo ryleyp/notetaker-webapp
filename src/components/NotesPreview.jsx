@@ -66,7 +66,7 @@ function formatInline(text) {
     .replace(/`(.+?)`/g, "<code>$1</code>");
 }
 
-export default function NotesPreview({ notes, onSave, saving, saved, savedPath, streaming }) {
+export default function NotesPreview({ notes, onSave, saving, saved, savedPath, streaming, todosSaved }) {
   const [viewMode, setViewMode] = useState("preview");
 
   const copyToClipboard = () => {
@@ -128,13 +128,21 @@ export default function NotesPreview({ notes, onSave, saving, saved, savedPath, 
 
       <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between gap-4">
         {saved ? (
-          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 border border-green-200 flex-1">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span>
-              Saved to <code className="font-mono text-xs bg-green-100 px-1 rounded">{savedPath}</code>
-            </span>
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 border border-green-200">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Saved to <code className="font-mono text-xs bg-green-100 px-1 rounded">{savedPath}</code></span>
+            </div>
+            {todosSaved && (
+              <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <span>{todosSaved.count} item{todosSaved.count !== 1 ? "s" : ""} added to <code className="font-mono text-xs bg-blue-100 px-1 rounded">{todosSaved.path}</code></span>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-sm text-gray-500">Ready to save to your Obsidian vault.</p>

@@ -34,6 +34,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savedPath, setSavedPath] = useState("");
+  const [todosSaved, setTodosSaved] = useState(null); // { count, path } | null
 
   useEffect(() => {
     try {
@@ -194,6 +195,21 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Save failed");
       setSaved(true);
       setSavedPath(data.savedPath);
+
+      // Extract todos assigned to Ryley/Riley and append to weekly file
+      try {
+        const todosRes = await fetch("/api/todos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes, vaultPath: settings.vaultPath, meetingTitle }),
+        });
+        const todosData = await todosRes.json();
+        if (todosData.count > 0) {
+          setTodosSaved({ count: todosData.count, path: todosData.savedPath });
+        }
+      } catch {
+        // Todos extraction is best-effort
+      }
     } catch (e) {
       alert(`Failed to save: ${e.message}`);
     } finally {
@@ -207,6 +223,7 @@ export default function Home() {
     setNotes("");
     setSaved(false);
     setSavedPath("");
+    setTodosSaved(null);
     setProcessError(null);
     setPendingReview(null);
     setActiveReplacements([]);
@@ -260,6 +277,7 @@ export default function Home() {
                 saved={saved}
                 savedPath={savedPath}
                 streaming={processing}
+                todosSaved={todosSaved}
               />
             </div>
           ) : (
