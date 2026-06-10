@@ -18,6 +18,10 @@ function extractDateFromTitle(title) {
   return match ? match[1] : null;
 }
 
+function isRelevantItem(line) {
+  return /\b(Ryley|Riley|Customer Success)\b/i.test(line) || /\bCS\b/.test(line);
+}
+
 function extractItems(notes) {
   const result = { actionItems: [], nextSteps: [] };
 
@@ -25,14 +29,14 @@ function extractItems(notes) {
   if (actionMatch) {
     result.actionItems = actionMatch[1]
       .split("\n")
-      .filter((l) => l.trim().startsWith("- "));
+      .filter((l) => l.trim().startsWith("- ") && isRelevantItem(l));
   }
 
   const nextMatch = notes.match(/## Next Steps\n([\s\S]*?)(?=\n## |\n---\n|$)/);
   if (nextMatch) {
     result.nextSteps = nextMatch[1]
       .split("\n")
-      .filter((l) => l.trim().startsWith("- "));
+      .filter((l) => l.trim().startsWith("- ") && isRelevantItem(l));
   }
 
   return result;
