@@ -7,9 +7,12 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     vaultPath: settings.vaultPath || "",
     apiKey: settings.apiKey || "",
     model: settings.model || "claude-haiku-4-5",
+    replacements: settings.replacements || [],
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [newOriginal, setNewOriginal] = useState("");
+  const [newAlias, setNewAlias] = useState("");
 
   function handleChange(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -35,11 +38,26 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     }
   }
 
+  function addReplacement() {
+    const orig = newOriginal.trim();
+    const alias = newAlias.trim();
+    if (!orig || !alias) return;
+    if (form.replacements.some((r) => r.original.toLowerCase() === orig.toLowerCase())) return;
+    setForm((f) => ({ ...f, replacements: [...f.replacements, { original: orig, alias }] }));
+    setNewOriginal("");
+    setNewAlias("");
+  }
+
+  function removeReplacement(i) {
+    setForm((f) => ({ ...f, replacements: f.replacements.filter((_, idx) => idx !== i) }));
+  }
+
   function handleSave() {
     onSave({
       vaultPath: form.vaultPath.trim(),
       apiKey: form.apiKey.trim(),
       model: form.model,
+      replacements: form.replacements,
     });
   }
 
@@ -89,7 +107,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
           <label className="label">Anthropic API Key</label>
           <p className="text-xs text-gray-500 mb-2">
             Your API key from{" "}
-            <span className="font-medium">console.anthropic.com</span>. Stored only in your browser session.
+            <span className="font-medium">console.anthropic.com</span>. Stored only in your browser.
             Alternatively, set <code className="bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</code> in{" "}
             <code className="bg-gray-100 px-1 rounded">.env.local</code>.
           </p>
@@ -103,23 +121,21 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
         </div>
 
         <div>
-          <label className="label">Claude Model</label>
+          <label className="label">Default Model</label>
           <p className="text-xs text-gray-500 mb-2">
             Sonnet is more accurate; Haiku is ~3× cheaper (~$0.03/transcript vs ~$0.10).
           </p>
           <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden w-fit">
             {[
-              { id: "claude-sonnet-4-6", label: "Sonnet 4.6", sub: "Best quality" },
               { id: "claude-haiku-4-5", label: "Haiku 4.5", sub: "3× cheaper" },
+              { id: "claude-sonnet-4-6", label: "Sonnet 4.6", sub: "Best quality" },
             ].map((m) => (
               <button
                 key={m.id}
                 type="button"
                 onClick={() => handleChange("model", m.id)}
                 className={`px-4 py-2 text-left transition-colors ${
-                  form.model === m.id
-                    ? "bg-obsidian-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
+                  form.model === m.id ? "bg-obsidian-600 text-white" : "text-gray-600 hover:bg-gray-50"
                 }`}
               >
                 <div className="text-xs font-medium">{m.label}</div>
@@ -129,13 +145,62 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
           </div>
         </div>
 
+        <div>
+          <label className="label">Privacy Replacements</label>
+          <p className="text-xs text-gray-500 mb-3">
+            These terms are always anonymized before sending transcripts to Claude. You can also add terms during the per-transcript review.
+          </p>
+
+          {form.replacements.length > 0 && (
+            <div className="mb-3 space-y-1.5">
+              {form.replacements.map((r, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-sm">
+                  <span className="font-medium text-gray-800 flex-1">{r.original}</span>
+                  <span className="text-gray-400">→</span>
+                  <span className="font-mono text-xs text-obsidian-700 bg-obsidian-50 px-1.5 py-0.5 rounded">{r.alias}</span>
+                  <button
+                    onClick={() => removeReplacement(i)}
+                    className="text-gray-400 hover:text-red-500 ml-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="input flex-1"
+              placeholder="Original (e.g. Lockheed)"
+              value={newOriginal}
+              onChange={(e) => setNewOriginal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addReplacement()}
+            />
+            <input
+              type="text"
+              className="input w-36"
+              placeholder="Alias (e.g. ORG_A)"
+              value={newAlias}
+              onChange={(e) => setNewAlias(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addReplacement()}
+            />
+            <button
+              onClick={addReplacement}
+              disabled={!newOriginal.trim() || !newAlias.trim()}
+              className="btn-secondary whitespace-nowrap"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-          <button className="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn-primary" onClick={handleSave}>
-            Save Settings
-          </button>
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave}>Save Settings</button>
         </div>
       </div>
     </div>
