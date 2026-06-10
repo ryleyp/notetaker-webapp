@@ -11,22 +11,21 @@ function getMondayOfWeek() {
   return monday.toISOString().split("T")[0];
 }
 
-function extractAssignedItems(notes) {
-  const assigneeRegex = /riley|ryley/i;
+function extractItems(notes) {
   const result = { actionItems: [], nextSteps: [] };
 
   const actionMatch = notes.match(/## Action Items\n([\s\S]*?)(?=\n## |\n---\n|$)/);
   if (actionMatch) {
     result.actionItems = actionMatch[1]
       .split("\n")
-      .filter((l) => l.trim().startsWith("- ") && assigneeRegex.test(l));
+      .filter((l) => l.trim().startsWith("- "));
   }
 
   const nextMatch = notes.match(/## Next Steps\n([\s\S]*?)(?=\n## |\n---\n|$)/);
   if (nextMatch) {
     result.nextSteps = nextMatch[1]
       .split("\n")
-      .filter((l) => l.trim().startsWith("- ") && assigneeRegex.test(l));
+      .filter((l) => l.trim().startsWith("- "));
   }
 
   return result;
@@ -70,7 +69,7 @@ export async function POST(request) {
     const { notes, vaultPath, meetingTitle } = await request.json();
     if (!notes || !vaultPath) return NextResponse.json({ ok: true });
 
-    const { actionItems, nextSteps } = extractAssignedItems(notes);
+    const { actionItems, nextSteps } = extractItems(notes);
     if (actionItems.length === 0 && nextSteps.length === 0) {
       return NextResponse.json({ ok: true, skipped: true });
     }

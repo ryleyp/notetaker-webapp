@@ -16,7 +16,7 @@ export function reverseReplacements(text, replacements) {
   let result = text;
   for (const r of [...replacements].reverse()) {
     if (!r.skip) {
-      result = result.replace(new RegExp(escapeRegex(r.alias), "gi"), r.original);
+      result = result.replace(new RegExp(escapeRegex(r.alias), "gi"), r.restored || r.original);
     }
   }
   return result;

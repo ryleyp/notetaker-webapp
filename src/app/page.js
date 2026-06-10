@@ -110,7 +110,7 @@ export default function Home() {
     if (toSave.length > 0) {
       const newReplacements = [
         ...(settings.replacements || []),
-        ...toSave.map((r) => ({ original: r.text, alias: r.alias })),
+        ...toSave.map((r) => ({ original: r.text, alias: r.alias, restored: r.restored || r.text })),
       ];
       updatedSettings = { ...settings, replacements: newReplacements };
       setSettings(updatedSettings);
@@ -123,7 +123,7 @@ export default function Home() {
       ...(updatedSettings.replacements || []),
       ...confirmed
         .filter((c) => !(updatedSettings.replacements || []).some((r) => r.original === c.text))
-        .map((c) => ({ original: c.text, alias: c.alias })),
+        .map((c) => ({ original: c.text, alias: c.alias, restored: c.restored || c.text })),
     ];
 
     await doGenerate(all);
