@@ -5,6 +5,7 @@ import { useState } from "react";
 export default function SettingsPanel({ settings, onSave, onClose }) {
   const [form, setForm] = useState({
     vaultPath: settings.vaultPath || "",
+    transcriptsPath: settings.transcriptsPath || "",
     apiKey: settings.apiKey || "",
     model: settings.model || "claude-haiku-4-5",
     replacements: settings.replacements || [],
@@ -55,6 +56,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
   function handleSave() {
     onSave({
       vaultPath: form.vaultPath.trim(),
+      transcriptsPath: form.transcriptsPath.trim(),
       apiKey: form.apiKey.trim(),
       model: form.model,
       replacements: form.replacements,
@@ -101,6 +103,20 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
               {testResult.message}
             </p>
           )}
+        </div>
+
+        <div>
+          <label className="label">Transcripts Archive Path</label>
+          <p className="text-xs text-gray-500 mb-2">
+            Folder where raw transcripts are saved after each generation. Subfolders are created automatically by account (LM Transcripts, L3 Transcripts, NGC Transcripts, Frontgrade Transcripts, Internal Transcripts).
+          </p>
+          <input
+            type="text"
+            className="input"
+            placeholder="/Users/yourname/Documents/Claude"
+            value={form.transcriptsPath}
+            onChange={(e) => handleChange("transcriptsPath", e.target.value)}
+          />
         </div>
 
         <div>

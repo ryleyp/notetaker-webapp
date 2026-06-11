@@ -182,6 +182,22 @@ export default function Home() {
       // Restore real names after stream completes
       if (replacements.length) full = reverseReplacements(full, replacements);
       setNotes(full);
+
+      // Archive corrected transcript (best-effort, silent)
+      if (settings.transcriptsPath) {
+        const correctedTranscript = replacements.length
+          ? reverseReplacements(applyReplacements(transcript, replacements), replacements)
+          : transcript;
+        fetch("/api/save-transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcript: correctedTranscript,
+            meetingTitle,
+            transcriptsPath: settings.transcriptsPath,
+          }),
+        }).catch(() => {});
+      }
     } catch (e) {
       setProcessError(e.message);
     } finally {
