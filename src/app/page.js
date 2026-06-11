@@ -58,6 +58,11 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    setTranscriptSaved(false);
+    setTranscriptSavedPath("");
+  }, [transcript, meetingTitle]);
+
   function handleSaveSettings(newSettings) {
     setSettings({ replacements: [], ...newSettings });
     localStorage.setItem("obsidian-notes-settings", JSON.stringify(newSettings));
