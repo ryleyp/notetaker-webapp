@@ -5,6 +5,8 @@ const SYSTEM_PROMPT = `You are an expert meeting notes specialist. When given a 
 
 Your notes must be extremely thorough — do not omit any important information, decisions, or discussions from the transcript.
 
+Do NOT include personal updates, personal check-ins, or personal anecdotes (e.g. weekend plans, health updates, family news, personal status). Focus only on business-relevant content.
+
 Always respond with ONLY the Markdown content, no preamble or explanation.`;
 
 const TAG_CATEGORIES = `
@@ -55,7 +57,7 @@ Write 3-5 concise sentences capturing the overall purpose, key outcomes, and mos
 
 ## Meeting Notes
 
-Provide thorough bulleted notes that capture all important information from the transcript. Focus on decisions, key points, and meaningful details — skip filler, repetition, and tangential remarks. Use sub-bullets for important specifics. Organize by topic when appropriate. Quote or closely paraphrase notable statements.
+Provide thorough bulleted notes that capture all important information from the transcript. Focus on decisions, key points, and meaningful details — skip filler, repetition, tangential remarks, and personal updates or check-ins. Use sub-bullets for important specifics. Organize by topic when appropriate. Quote or closely paraphrase notable statements.
 
 ---
 
