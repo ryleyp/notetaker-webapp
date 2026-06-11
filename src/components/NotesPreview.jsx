@@ -14,7 +14,7 @@ function renderMarkdown(text) {
     if (/^(#[a-z][a-z0-9-]*\s*)+$/i.test(line.trim()) && line.trim().startsWith("#")) {
       const tags = line.trim().split(/\s+/).map((t) => t.slice(1)).filter(Boolean);
       const tagPills = tags
-        .map((t) => `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-obsidian-100 text-obsidian-700 mr-1 mb-1">#${escapeHtml(t)}</span>`)
+        .map((t) => `<span style="background:#FFF3C4;color:#7A3500;" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mr-1 mb-1">#${escapeHtml(t)}</span>`)
         .join("");
       result.push(`<div class="flex flex-wrap mb-2">${tagPills}</div>`);
       i++;
