@@ -37,6 +37,9 @@ export default function Home() {
   const [savedPath, setSavedPath] = useState("");
   const [todosSaved, setTodosSaved] = useState(null); // { count, path } | null
   const [noteCost, setNoteCost] = useState(null);
+  const [savingTranscript, setSavingTranscript] = useState(false);
+  const [transcriptSaved, setTranscriptSaved] = useState(false);
+  const [transcriptSavedPath, setTranscriptSavedPath] = useState("");
 
   useEffect(() => {
     try {
@@ -246,6 +249,50 @@ export default function Home() {
     }
   }
 
+  async function handleSaveTranscript() {
+    if (!transcript.trim() || !settings.vaultPath) return;
+    const replacements = settings.replacements || [];
+    const corrected = replacements.length
+      ? reverseReplacements(applyReplacements(transcript, replacements), replacements)
+      : transcript;
+
+    setSavingTranscript(true);
+    try {
+      const title = meetingTitle || "Transcript";
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: `# ${title}\n\n${corrected}`,
+          vaultPath: settings.vaultPath,
+          folderPath: selectedFolder,
+          meetingTitle: title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      setTranscriptSaved(true);
+      setTranscriptSavedPath(data.savedPath);
+
+      if (settings.transcriptsPath) {
+        fetch("/api/save-transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcript: corrected,
+            meetingTitle: title,
+            transcriptsPath: settings.transcriptsPath,
+            folder: selectedFolder || undefined,
+          }),
+        }).catch(() => {});
+      }
+    } catch (e) {
+      alert(`Failed to save transcript: ${e.message}`);
+    } finally {
+      setSavingTranscript(false);
+    }
+  }
+
   function handleNewNote() {
     setTranscript("");
     setMeetingTitle("");
@@ -257,6 +304,8 @@ export default function Home() {
     setProcessError(null);
     setPendingReview(null);
     setActiveReplacements([]);
+    setTranscriptSaved(false);
+    setTranscriptSavedPath("");
   }
 
   function handleModeChange(newMode) {
@@ -355,6 +404,7 @@ export default function Home() {
               )}
 
               {!pendingReview && (
+                <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden flex-shrink-0">
                     {[
@@ -405,6 +455,27 @@ export default function Home() {
                       </>
                     )}
                   </button>
+                </div>
+
+                {/* Save transcript only */}
+                <div className="flex items-center justify-end gap-2 min-h-[1.5rem]">
+                  {transcriptSaved ? (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Transcript saved to <code className="font-mono bg-green-50 px-1 rounded">{transcriptSavedPath}</code>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleSaveTranscript}
+                      disabled={savingTranscript || !transcript.trim() || !settings.vaultPath}
+                      className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed underline underline-offset-2"
+                    >
+                      {savingTranscript ? "Saving..." : "Save transcript without generating notes"}
+                    </button>
+                  )}
+                </div>
                 </div>
               )}
             </>
