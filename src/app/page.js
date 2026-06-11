@@ -195,6 +195,7 @@ export default function Home() {
             transcript: correctedTranscript,
             meetingTitle,
             transcriptsPath: settings.transcriptsPath,
+            folder: selectedFolder || undefined,
           }),
         }).catch(() => {});
       }
