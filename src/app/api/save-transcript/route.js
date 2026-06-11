@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+function mapFolder(selectedFolder) {
+  const f = (selectedFolder || "").toLowerCase();
+  if (f.includes("lockheed")) return "LM Transcripts";
+  if (f.includes("l3harris") || f.includes("l3 harris")) return "L3 Transcripts";
+  if (f.includes("northrop")) return "NGC Transcripts";
+  if (f.includes("frontgrade")) return "Frontgrade Transcripts";
+  return "Internal Transcripts";
+}
+
 export async function POST(request) {
   try {
     const { transcript, meetingTitle, transcriptsPath, folder } = await request.json();
@@ -9,8 +18,9 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, skipped: true });
     }
 
+    const archiveFolder = mapFolder(folder);
     const resolvedBase = path.resolve(transcriptsPath);
-    const dir = folder ? path.join(resolvedBase, folder) : resolvedBase;
+    const dir = path.join(resolvedBase, archiveFolder);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const safeTitle = meetingTitle.replace(/[/\\:*?"<>|]/g, "-");
