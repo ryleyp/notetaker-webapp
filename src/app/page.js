@@ -15,7 +15,7 @@ import { calcCost, formatCost } from "@/lib/pricing";
 export default function Home() {
   const [mode, setMode] = useState("new");
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState({ vaultPath: "", apiKey: "", replacements: [] });
+  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", replacements: [] });
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
@@ -43,7 +43,7 @@ export default function Home() {
       const stored = localStorage.getItem("obsidian-notes-settings");
       if (stored) {
         const parsed = JSON.parse(stored);
-        setSettings({ replacements: [], ...parsed });
+        setSettings({ replacements: [], transcriptsPath: "/Users/ryleypriddy/Documents/Claude", ...parsed });
         if (parsed.model) setModel(parsed.model);
         if (!parsed.vaultPath) setShowSettings(true);
       } else {
