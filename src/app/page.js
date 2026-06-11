@@ -26,6 +26,7 @@ export default function Home() {
   // Sanitization state
   const [sanitizing, setSanitizing] = useState(false);
   const [pendingReview, setPendingReview] = useState(null); // null | detected[]
+  const [pendingAction, setPendingAction] = useState("generate"); // "generate" | "saveTranscript"
   const [activeReplacements, setActiveReplacements] = useState([]);
 
   // Generation state
@@ -68,29 +69,19 @@ export default function Home() {
     if (!meetingTitle) setMeetingTitle(suggested);
   }
 
-  // Step 1: detect entities, show review card
-  async function handleProcess() {
-    if (!transcript.trim()) return;
-    setSanitizing(true);
-    setProcessError(null);
-    setNotes("");
-    setSaved(false);
-    setSavedPath("");
-    setPendingReview(null);
-
+  // Shared: detect entities, show review card, then route to action
+  async function runSanitizeDetection(action) {
     const savedReplacements = settings.replacements || [];
     const knownTerms = savedReplacements.map((r) => r.original);
+    setSanitizing(true);
+    setPendingAction(action);
 
     let newEntities = [];
     try {
       const res = await fetch("/api/sanitize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript,
-          apiKey: settings.apiKey || undefined,
-          knownTerms,
-        }),
+        body: JSON.stringify({ transcript, apiKey: settings.apiKey || undefined, knownTerms }),
       });
       const data = await res.json();
       newEntities = data.entities || [];
@@ -104,8 +95,27 @@ export default function Home() {
       const detected = assignAliases(newEntities, savedReplacements);
       setPendingReview(detected);
     } else {
-      await doGenerate(savedReplacements);
+      if (action === "generate") await doGenerate(savedReplacements);
+      else await doSaveTranscript(savedReplacements);
     }
+  }
+
+  async function handleProcess() {
+    if (!transcript.trim()) return;
+    setProcessError(null);
+    setNotes("");
+    setSaved(false);
+    setSavedPath("");
+    setPendingReview(null);
+    await runSanitizeDetection("generate");
+  }
+
+  async function handleSaveTranscriptButton() {
+    if (!transcript.trim() || !settings.vaultPath) return;
+    setTranscriptSaved(false);
+    setTranscriptSavedPath("");
+    setPendingReview(null);
+    await runSanitizeDetection("saveTranscript");
   }
 
   // Step 2: user confirms review
@@ -131,12 +141,15 @@ export default function Home() {
         .map((c) => ({ original: c.text, alias: c.alias, restored: c.restored || c.text })),
     ];
 
-    await doGenerate(all);
+    if (pendingAction === "generate") await doGenerate(all);
+    else await doSaveTranscript(all);
   }
 
   function handleReviewSkip() {
     setPendingReview(null);
-    doGenerate(settings.replacements || []);
+    const replacements = settings.replacements || [];
+    if (pendingAction === "generate") doGenerate(replacements);
+    else doSaveTranscript(replacements);
   }
 
   // Step 3: sanitize + generate
@@ -249,9 +262,8 @@ export default function Home() {
     }
   }
 
-  async function handleSaveTranscript() {
+  async function doSaveTranscript(replacements) {
     if (!transcript.trim() || !settings.vaultPath) return;
-    const replacements = settings.replacements || [];
     const corrected = replacements.length
       ? reverseReplacements(applyReplacements(transcript, replacements), replacements)
       : transcript;
@@ -468,11 +480,11 @@ export default function Home() {
                     </span>
                   ) : (
                     <button
-                      onClick={handleSaveTranscript}
-                      disabled={savingTranscript || !transcript.trim() || !settings.vaultPath}
+                      onClick={handleSaveTranscriptButton}
+                      disabled={savingTranscript || sanitizing || !transcript.trim() || !settings.vaultPath}
                       className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed underline underline-offset-2"
                     >
-                      {savingTranscript ? "Saving..." : "Save transcript without generating notes"}
+                      {savingTranscript ? "Saving..." : sanitizing && pendingAction === "saveTranscript" ? "Scanning for names..." : "Save transcript without generating notes"}
                     </button>
                   )}
                 </div>
