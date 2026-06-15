@@ -37,6 +37,16 @@ export default function Header({ onSettingsClick, isSettingsOpen, mode, onModeCh
               >
                 Account Status
               </button>
+              <button
+                onClick={() => onModeChange("scan")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === "scan"
+                    ? "bg-white text-obsidian-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Vault Scan
+              </button>
             </div>
 
             <button

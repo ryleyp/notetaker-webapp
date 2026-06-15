@@ -2,46 +2,64 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-// The glossary (privacy replacements, common corrections, account config) is
-// persisted to a single JSON file outside the browser so it survives cache
-// clears and moves between machines. The directory is provided by the client
-// (transcripts archive path, falling back to the vault path).
-const FILE = "notetaker-config.json";
+const CONFIG_FILE = "notetaker-config.json";
+const GLOSSARY_FILE = "notetaker-glossary.json";
 
-function configFile(dir) {
-  return path.join(path.resolve(dir), FILE);
+function readJSON(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  try { return JSON.parse(fs.readFileSync(filePath, "utf-8")); } catch { return null; }
+}
+
+function writeJSON(filePath, data) {
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const dir = searchParams.get("path");
-  if (!dir) {
-    return NextResponse.json({ error: "path is required" }, { status: 400 });
-  }
-  const file = configFile(dir);
-  if (!fs.existsSync(file)) {
-    return NextResponse.json({ config: null });
-  }
-  try {
-    const config = JSON.parse(fs.readFileSync(file, "utf-8"));
-    return NextResponse.json({ config });
-  } catch {
-    return NextResponse.json({ config: null, error: "Could not parse config file" });
-  }
+  if (!dir) return NextResponse.json({ error: "path is required" }, { status: 400 });
+
+  const base = path.resolve(dir);
+  const cfg = readJSON(path.join(base, CONFIG_FILE));
+  const gls = readJSON(path.join(base, GLOSSARY_FILE));
+
+  if (!cfg && !gls) return NextResponse.json({ config: null });
+
+  return NextResponse.json({
+    config: {
+      accounts: cfg?.accounts ?? undefined,
+      corrections: cfg?.corrections ?? undefined,
+      replacements: gls?.replacements ?? cfg?.replacements ?? undefined,
+    },
+  });
 }
 
 export async function POST(request) {
   try {
-    const { path: dir, config } = await request.json();
-    if (!dir) {
-      return NextResponse.json({ error: "path is required" }, { status: 400 });
+    const body = await request.json();
+    const { path: dir, config, glossary } = body;
+    if (!dir) return NextResponse.json({ error: "path is required" }, { status: 400 });
+
+    const base = path.resolve(dir);
+    if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
+
+    // Config file — accounts and corrections, no personal names
+    if (config) {
+      const existing = readJSON(path.join(base, CONFIG_FILE)) || {};
+      writeJSON(path.join(base, CONFIG_FILE), {
+        ...existing,
+        ...(config.accounts !== undefined && { accounts: config.accounts }),
+        ...(config.corrections !== undefined && { corrections: config.corrections }),
+      });
     }
-    const resolved = path.resolve(dir);
-    if (!fs.existsSync(resolved)) {
-      fs.mkdirSync(resolved, { recursive: true });
+
+    // Glossary file — replacements with real names, keep separate
+    const replacements = glossary?.replacements ?? config?.replacements;
+    if (replacements !== undefined) {
+      writeJSON(path.join(base, GLOSSARY_FILE), { replacements });
     }
-    fs.writeFileSync(configFile(dir), JSON.stringify(config, null, 2), "utf-8");
-    return NextResponse.json({ ok: true, savedPath: configFile(dir) });
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error?.message || "Save failed" }, { status: 500 });
   }

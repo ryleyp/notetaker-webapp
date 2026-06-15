@@ -8,6 +8,7 @@ import TranscriptInput from "@/components/TranscriptInput";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
+import VaultScan from "@/components/VaultScan";
 import SanitizeReview from "@/components/SanitizeReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
@@ -101,9 +102,11 @@ export default function Home() {
       body: JSON.stringify({
         path: dir,
         config: {
-          replacements: s.replacements || [],
-          corrections: s.corrections || [],
           accounts: s.accounts || DEFAULT_ACCOUNTS,
+          corrections: s.corrections || [],
+        },
+        glossary: {
+          replacements: s.replacements || [],
         },
       }),
     }).catch(() => {});
@@ -129,13 +132,20 @@ export default function Home() {
     setSanitizing(true);
     setPendingAction(action);
 
+    // Pre-apply known corrections and replacements — the scan only sees
+    // pseudonymized versions of already-known names.
+    const preSanitized = applyReplacements(
+      applyCorrections(transcript, settings.corrections || []),
+      savedReplacements
+    );
+
     let newEntities = [];
     let scanSkipped = false;
     try {
       const res = await fetch("/api/sanitize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, apiKey: settings.apiKey || undefined, knownTerms }),
+        body: JSON.stringify({ transcript: preSanitized, apiKey: settings.apiKey || undefined, knownTerms }),
       });
       const data = await res.json();
       if (data.skipped) scanSkipped = true;
@@ -431,6 +441,11 @@ export default function Home() {
             settings={settings}
             onSettingsClick={() => setShowSettings(true)}
           />
+        )}
+
+        {/* ── Vault Scan mode ── */}
+        {mode === "scan" && (
+          <VaultScan settings={settings} onSettingsClick={() => setShowSettings(true)} />
         )}
 
         {/* ── New Note mode ── */}

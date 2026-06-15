@@ -8,18 +8,33 @@ import { detectAccount } from "@/lib/accounts";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+const SYNTHESIS_PRICING = {
+  "claude-haiku-4-5": { input: 1.0, output: 5.0, label: "Haiku" },
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0, label: "Sonnet" },
+};
+
 function threeMonthsAgoLabel() {
   const d = new Date();
   d.setMonth(d.getMonth() - 3);
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+function estimateUsage(notes, model) {
+  const chars = notes.reduce((s, n) => s + (n.content?.length || 0) + (n.title?.length || 0), 0);
+  const inputTokens = Math.ceil(chars / 4) + 2500;
+  const outputTokens = 2500;
+  const p = SYNTHESIS_PRICING[model] || SYNTHESIS_PRICING["claude-sonnet-4-6"];
+  const cost = (inputTokens / 1e6) * p.input + (outputTokens / 1e6) * p.output;
+  return { inputTokens, outputTokens, cost, label: p.label };
+}
+
 export default function AccountStatus({ settings, onSettingsClick }) {
   const [selectedFolder, setSelectedFolder] = useState("");
-  const [loadedNotes, setLoadedNotes] = useState(null); // null = not loaded yet
+  const [loadedNotes, setLoadedNotes] = useState(null);
   const [loadCounts, setLoadCounts] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthError, setSynthError] = useState(null);
@@ -38,6 +53,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setLoadCounts(null);
     setOutput("");
     setSaved(false);
+    setShowConfirm(false);
 
     try {
       const { aliases, archiveFolder } = detectAccount(selectedFolder, settings.accounts);
@@ -66,6 +82,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setSynthError(null);
     setOutput("");
     setSaved(false);
+    setShowConfirm(false);
 
     try {
       const res = await fetch("/api/synthesize", {
@@ -124,21 +141,21 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setSavedPath("");
     setSynthError(null);
     setLoadError(null);
+    setShowConfirm(false);
   }
 
   const folderLabel = selectedFolder || "(Vault root)";
+  const model = settings.model || "claude-sonnet-4-6";
 
   return (
     <div className="space-y-4">
-      {/* Folder picker */}
       <FolderSelector
         vaultPath={settings.vaultPath}
         selectedFolder={selectedFolder}
-        onSelect={(f) => { setSelectedFolder(f); setLoadedNotes(null); setOutput(""); }}
+        onSelect={(f) => { setSelectedFolder(f); setLoadedNotes(null); setOutput(""); setShowConfirm(false); }}
         onSettingsClick={onSettingsClick}
       />
 
-      {/* Date range info + load */}
       {settings.vaultPath && !output && (
         <div className="card p-6">
           <div className="flex items-start justify-between gap-4">
@@ -201,16 +218,11 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                   </svg>
                   Scanning...
                 </>
-              ) : loadedNotes !== null ? (
-                "Re-scan"
-              ) : (
-                "Scan Folder"
-              )}
+              ) : loadedNotes !== null ? "Re-scan" : "Scan Folder"}
             </button>
           </div>
 
-          {/* Synthesize button */}
-          {loadedNotes?.length > 0 && (
+          {loadedNotes?.length > 0 && !showConfirm && (
             <div className="mt-5 pt-5 border-t border-gray-100">
               {synthError && (
                 <p className="mb-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-200">
@@ -218,40 +230,74 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                 </p>
               )}
               <button
-                onClick={handleSynthesize}
+                onClick={() => setShowConfirm(true)}
                 disabled={synthesizing}
                 className="btn-primary w-full py-3 text-base"
               >
-                {synthesizing ? (
-                  <>
-                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Synthesizing {loadedNotes.length} notes with Claude Sonnet...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    Generate Account Status
-                  </>
-                )}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Generate Account Status
               </button>
             </div>
           )}
+
+          {loadedNotes?.length > 0 && showConfirm && (() => {
+            const est = estimateUsage(loadedNotes, model);
+            return (
+              <div className="mt-5 pt-5 border-t border-gray-100">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Pre-flight check</h4>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3 text-sm">
+                  {loadCounts && (
+                    <div className="flex gap-4 text-xs text-gray-600">
+                      {loadCounts.obsidian > 0 && <span>📝 {loadCounts.obsidian} Obsidian</span>}
+                      {loadCounts.transcripts > 0 && <span>🎙 {loadCounts.transcripts} Transcripts</span>}
+                      {loadCounts.crossVault > 0 && <span>🔍 {loadCounts.crossVault} Cross-folder</span>}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                    <span className="text-gray-500">Est. input</span>
+                    <span className="font-mono text-gray-700">~{est.inputTokens.toLocaleString()} tokens</span>
+                    <span className="text-gray-500">Est. output</span>
+                    <span className="font-mono text-gray-700">~{est.outputTokens.toLocaleString()} tokens</span>
+                    <span className="text-gray-500">Est. cost</span>
+                    <span className="font-mono text-gray-700">~${est.cost.toFixed(4)} ({est.label})</span>
+                  </div>
+                  <p className="text-xs text-amber-700">
+                    Sanitized note content will be sent to Claude. Names in your glossary are replaced before sending.
+                  </p>
+                </div>
+                <div className="flex gap-3 mt-3">
+                  <button onClick={() => setShowConfirm(false)} className="btn-secondary flex-1">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSynthesize}
+                    disabled={synthesizing}
+                    className="btn-primary flex-1 py-3"
+                  >
+                    {synthesizing ? (
+                      <>
+                        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Synthesizing…
+                      </>
+                    ) : "Confirm — Send to Claude"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* Output preview */}
       {output && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Account Status Ready</h2>
-            <button onClick={handleReset} className="btn-secondary">
-              Start Over
-            </button>
+            <button onClick={handleReset} className="btn-secondary">Start Over</button>
           </div>
           <NotesPreview
             notes={output}

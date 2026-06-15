@@ -162,6 +162,7 @@ export async function POST(request) {
     // Apply corrections then replacements to each note before sending to Claude
     const sanitizedNotes = notes.map((n) => ({
       ...n,
+      title: applyReplacements(applyCorrections(n.title || "", corrections), replacements),
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
 
