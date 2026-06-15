@@ -9,6 +9,7 @@ export function applyCorrections(text, corrections) {
 }
 
 
+function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
