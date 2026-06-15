@@ -9,7 +9,10 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     apiKey: settings.apiKey || "",
     model: settings.model || "claude-haiku-4-5",
     replacements: settings.replacements || [],
+    corrections: settings.corrections || [],
   });
+  const [newFind, setNewFind] = useState("");
+  const [newReplace, setNewReplace] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [newOriginal, setNewOriginal] = useState("");
@@ -53,6 +56,18 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     setForm((f) => ({ ...f, replacements: f.replacements.filter((_, idx) => idx !== i) }));
   }
 
+  function addCorrection() {
+    const find = newFind.trim();
+    if (!find) return;
+    setForm((f) => ({ ...f, corrections: [...f.corrections, { find, replace: newReplace }] }));
+    setNewFind("");
+    setNewReplace("");
+  }
+
+  function removeCorrection(i) {
+    setForm((f) => ({ ...f, corrections: f.corrections.filter((_, idx) => idx !== i) }));
+  }
+
   function handleSave() {
     onSave({
       vaultPath: form.vaultPath.trim(),
@@ -60,6 +75,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       apiKey: form.apiKey.trim(),
       model: form.model,
       replacements: form.replacements,
+      corrections: form.corrections,
     });
   }
 
@@ -207,6 +223,56 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
             <button
               onClick={addReplacement}
               disabled={!newOriginal.trim() || !newAlias.trim()}
+              className="btn-secondary whitespace-nowrap"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Common Corrections</label>
+          <p className="text-xs text-gray-500 mb-3">
+            Automatically fix recurring transcription errors before generating or saving (e.g. voice memo mishears "in" as "NI").
+          </p>
+
+          {form.corrections.length > 0 && (
+            <div className="mb-3 space-y-1.5">
+              {form.corrections.map((c, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-sm">
+                  <span className="font-medium text-gray-800 flex-1">{c.find}</span>
+                  <span className="text-gray-400">→</span>
+                  <span className="font-medium text-gray-800 flex-1">{c.replace || <em className="text-gray-400">(delete)</em>}</span>
+                  <button onClick={() => removeCorrection(i)} className="text-gray-400 hover:text-red-500 ml-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="input flex-1"
+              placeholder="Find (e.g. in NI)"
+              value={newFind}
+              onChange={(e) => setNewFind(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addCorrection()}
+            />
+            <input
+              type="text"
+              className="input flex-1"
+              placeholder="Replace with (e.g. NI)"
+              value={newReplace}
+              onChange={(e) => setNewReplace(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addCorrection()}
+            />
+            <button
+              onClick={addCorrection}
+              disabled={!newFind.trim()}
               className="btn-secondary whitespace-nowrap"
             >
               Add

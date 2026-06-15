@@ -1,4 +1,14 @@
-function escapeRegex(str) {
+export function applyCorrections(text, corrections) {
+  if (!corrections?.length) return text;
+  let result = text;
+  for (const { find, replace } of corrections) {
+    if (!find?.trim()) continue;
+    result = result.replaceAll(find, replace ?? "");
+  }
+  return result;
+}
+
+
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 

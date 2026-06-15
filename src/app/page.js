@@ -9,13 +9,13 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
 import SanitizeReview from "@/components/SanitizeReview";
-import { applyReplacements, reverseReplacements, assignAliases } from "@/lib/sanitize";
+import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", replacements: [] });
+  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", replacements: [], corrections: [] });
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
@@ -47,7 +47,7 @@ export default function Home() {
       const stored = localStorage.getItem("obsidian-notes-settings");
       if (stored) {
         const parsed = JSON.parse(stored);
-        setSettings({ replacements: [], transcriptsPath: "/Users/ryleypriddy/Documents/Claude", ...parsed });
+        setSettings({ replacements: [], corrections: [], transcriptsPath: "/Users/ryleypriddy/Documents/Claude", ...parsed });
         if (parsed.model) setModel(parsed.model);
         if (!parsed.vaultPath) setShowSettings(true);
       } else {
@@ -167,9 +167,10 @@ export default function Home() {
   // Step 3: sanitize + generate
   async function doGenerate(replacements) {
     setActiveReplacements(replacements);
+    const corrected = applyCorrections(transcript, settings.corrections || []);
     const sanitizedTranscript = replacements.length
-      ? applyReplacements(transcript, replacements)
-      : transcript;
+      ? applyReplacements(corrected, replacements)
+      : corrected;
 
     setProcessing(true);
     try {
@@ -276,9 +277,10 @@ export default function Home() {
 
   async function doSaveTranscript(replacements) {
     if (!transcript.trim() || !settings.vaultPath) return;
+    const withCorrections = applyCorrections(transcript, settings.corrections || []);
     const corrected = replacements.length
-      ? reverseReplacements(applyReplacements(transcript, replacements), replacements)
-      : transcript;
+      ? reverseReplacements(applyReplacements(withCorrections, replacements), replacements)
+      : withCorrections;
 
     setSavingTranscript(true);
     try {
