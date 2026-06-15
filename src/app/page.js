@@ -11,12 +11,12 @@ import AccountStatus from "@/components/AccountStatus";
 import SanitizeReview from "@/components/SanitizeReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
-import { matchVaultFolder } from "@/lib/accounts";
+import { matchVaultFolder, DEFAULT_ACCOUNTS } from "@/lib/accounts";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", replacements: [], corrections: [] });
+  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS });
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
@@ -44,11 +44,13 @@ export default function Home() {
   const [transcriptSavedPath, setTranscriptSavedPath] = useState("");
 
   useEffect(() => {
+    let base;
     try {
       const stored = localStorage.getItem("obsidian-notes-settings");
       if (stored) {
         const parsed = JSON.parse(stored);
-        setSettings({ replacements: [], corrections: [], transcriptsPath: "/Users/ryleypriddy/Documents/Claude", ...parsed });
+        base = { replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS, transcriptsPath: "/Users/ryleypriddy/Documents/Claude", ...parsed };
+        setSettings(base);
         if (parsed.model) setModel(parsed.model);
         if (!parsed.vaultPath) setShowSettings(true);
       } else {
@@ -57,6 +59,30 @@ export default function Home() {
     } catch {
       setShowSettings(true);
     }
+
+    // Merge the durable glossary config file (source of truth across machines).
+    const dir = base?.transcriptsPath || base?.vaultPath;
+    if (!dir) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/config?path=${encodeURIComponent(dir)}`);
+        const data = await res.json();
+        if (data.config) {
+          setSettings((prev) => {
+            const merged = {
+              ...prev,
+              replacements: data.config.replacements ?? prev.replacements,
+              corrections: data.config.corrections ?? prev.corrections,
+              accounts: data.config.accounts?.length ? data.config.accounts : prev.accounts,
+            };
+            localStorage.setItem("obsidian-notes-settings", JSON.stringify(merged));
+            return merged;
+          });
+        }
+      } catch {
+        // File-based glossary is best-effort; localStorage remains the fallback.
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -64,9 +90,30 @@ export default function Home() {
     setTranscriptSavedPath("");
   }, [transcript, meetingTitle]);
 
+  // Write the portable glossary (replacements, corrections, accounts) to a file
+  // so it survives browser cache clears and travels between machines.
+  function persistConfig(s) {
+    const dir = s.transcriptsPath || s.vaultPath;
+    if (!dir) return;
+    fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: dir,
+        config: {
+          replacements: s.replacements || [],
+          corrections: s.corrections || [],
+          accounts: s.accounts || DEFAULT_ACCOUNTS,
+        },
+      }),
+    }).catch(() => {});
+  }
+
   function handleSaveSettings(newSettings) {
-    setSettings({ replacements: [], ...newSettings });
+    const merged = { replacements: [], ...newSettings };
+    setSettings(merged);
     localStorage.setItem("obsidian-notes-settings", JSON.stringify(newSettings));
+    persistConfig(merged);
     setShowSettings(false);
     setSelectedFolder("");
   }
@@ -143,6 +190,7 @@ export default function Home() {
       updatedSettings = { ...settings, replacements: newReplacements };
       setSettings(updatedSettings);
       localStorage.setItem("obsidian-notes-settings", JSON.stringify(updatedSettings));
+      persistConfig(updatedSettings);
     }
 
     setPendingReview(null);
@@ -343,7 +391,7 @@ export default function Home() {
       const res = await fetch(`/api/folders?vaultPath=${encodeURIComponent(settings.vaultPath)}`);
       const data = await res.json();
       const folders = (data.folders || []).filter((f) => f.path !== "");
-      const matched = matchVaultFolder(content, folders);
+      const matched = matchVaultFolder(content, folders, settings.accounts);
       if (matched) return matched;
       const internal = folders.find((f) => f.name.toLowerCase().includes("internal"));
       return internal?.path || "";

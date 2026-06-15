@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { textHasAlias } from "@/lib/accounts";
 
 function parseDateFromFilename(filename) {
   const match = filename.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -49,7 +50,12 @@ export async function GET(request) {
   const folderPath = searchParams.get("folderPath") || "";
   const transcriptsPath = searchParams.get("transcriptsPath") || "";
   const accountFolder = searchParams.get("accountFolder") || "";
-  const accountKeyword = searchParams.get("accountKeyword") || "";
+  // Account name aliases for cross-vault search (comma-separated). Falls back
+  // to the legacy single-keyword param for backward compatibility.
+  const accountAliases = (searchParams.get("accountAliases") || searchParams.get("accountKeyword") || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   if (!vaultPath) {
     return NextResponse.json({ error: "vaultPath is required" }, { status: 400 });
@@ -78,9 +84,10 @@ export async function GET(request) {
     transcriptNotes = readFolder(archiveDir, threeMonthsAgo, "transcript", accountFolder);
   }
 
-  // 3. Cross-vault keyword search (other Obsidian subfolders)
+  // 3. Cross-vault keyword search (other Obsidian subfolders). A note matches
+  // if any account alias appears as a whole word in its content.
   let crossVaultNotes = [];
-  if (accountKeyword) {
+  if (accountAliases.length) {
     let vaultEntries;
     try { vaultEntries = fs.readdirSync(resolvedVault, { withFileTypes: true }); } catch {}
     if (vaultEntries) {
@@ -91,7 +98,7 @@ export async function GET(request) {
         const subDir = path.join(resolvedVault, entry.name);
         const candidates = readFolder(subDir, threeMonthsAgo, "cross-vault", entry.name);
         for (const note of candidates) {
-          if (note.content.toLowerCase().includes(accountKeyword.toLowerCase())) {
+          if (accountAliases.some((a) => textHasAlias(note.content, a))) {
             crossVaultNotes.push(note);
           }
         }

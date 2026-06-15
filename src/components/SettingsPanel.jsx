@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DEFAULT_ACCOUNTS } from "@/lib/accounts";
 
 export default function SettingsPanel({ settings, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -10,6 +11,12 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     model: settings.model || "claude-haiku-4-5",
     replacements: settings.replacements || [],
     corrections: settings.corrections || [],
+    // Edit aliases as a comma-separated string; split into an array on save.
+    accounts: (settings.accounts?.length ? settings.accounts : DEFAULT_ACCOUNTS).map((a) => ({
+      name: a.name || "",
+      archiveFolder: a.archiveFolder || "",
+      aliasesText: (a.aliases || []).join(", "),
+    })),
   });
   const [newFind, setNewFind] = useState("");
   const [newReplace, setNewReplace] = useState("");
@@ -68,7 +75,29 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     setForm((f) => ({ ...f, corrections: f.corrections.filter((_, idx) => idx !== i) }));
   }
 
+  function updateAccount(i, field, value) {
+    setForm((f) => ({
+      ...f,
+      accounts: f.accounts.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)),
+    }));
+  }
+
+  function addAccount() {
+    setForm((f) => ({ ...f, accounts: [...f.accounts, { name: "", archiveFolder: "", aliasesText: "" }] }));
+  }
+
+  function removeAccount(i) {
+    setForm((f) => ({ ...f, accounts: f.accounts.filter((_, idx) => idx !== i) }));
+  }
+
   function handleSave() {
+    const accounts = form.accounts
+      .filter((a) => a.name.trim())
+      .map((a) => ({
+        name: a.name.trim(),
+        archiveFolder: a.archiveFolder.trim(),
+        aliases: a.aliasesText.split(",").map((s) => s.trim()).filter(Boolean),
+      }));
     onSave({
       vaultPath: form.vaultPath.trim(),
       transcriptsPath: form.transcriptsPath.trim(),
@@ -76,6 +105,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       model: form.model,
       replacements: form.replacements,
       corrections: form.corrections,
+      accounts,
     });
   }
 
@@ -278,6 +308,58 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
               Add
             </button>
           </div>
+        </div>
+
+        <div>
+          <label className="label">Accounts</label>
+          <p className="text-xs text-gray-500 mb-3">
+            Each account maps name aliases to a transcript archive subfolder. Aliases drive
+            cross-folder search and auto-filing of vault-root notes — add abbreviations and
+            program names (comma-separated) to catch more mentions.
+          </p>
+
+          <div className="space-y-3">
+            {form.accounts.map((a, i) => (
+              <div key={i} className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input flex-1"
+                    placeholder="Account name (e.g. Northrop Grumman)"
+                    value={a.name}
+                    onChange={(e) => updateAccount(i, "name", e.target.value)}
+                  />
+                  <button
+                    onClick={() => removeAccount(i)}
+                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                    title="Remove account"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Archive folder (e.g. NGC Transcripts)"
+                  value={a.archiveFolder}
+                  onChange={(e) => updateAccount(i, "archiveFolder", e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Aliases, comma-separated (e.g. northrop, ngc)"
+                  value={a.aliasesText}
+                  onChange={(e) => updateAccount(i, "aliasesText", e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+
+          <button onClick={addAccount} className="btn-secondary mt-3">
+            + Add account
+          </button>
         </div>
 
         <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">

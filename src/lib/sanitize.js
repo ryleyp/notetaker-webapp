@@ -13,11 +13,22 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Match a term as a whole word where possible. Anchoring with word boundaries
+// keeps a short term/alias from matching inside a longer one — e.g. reversing
+// "ORG_1" must not corrupt "ORG_12". Boundaries are only added on sides where
+// the term edge is itself a word character (so "C++" still matches).
+function wordBoundaryRegex(term, flags) {
+  const esc = escapeRegex(term);
+  const left = /^\w/.test(term) ? "\\b" : "";
+  const right = /\w$/.test(term) ? "\\b" : "";
+  return new RegExp(`${left}${esc}${right}`, flags);
+}
+
 export function applyReplacements(text, replacements) {
   let result = text;
   for (const r of replacements) {
-    if (!r.skip) {
-      result = result.replace(new RegExp(escapeRegex(r.original), "gi"), r.alias);
+    if (!r.skip && r.original) {
+      result = result.replace(wordBoundaryRegex(r.original, "gi"), r.alias);
     }
   }
   return result;
@@ -26,8 +37,8 @@ export function applyReplacements(text, replacements) {
 export function reverseReplacements(text, replacements) {
   let result = text;
   for (const r of [...replacements].reverse()) {
-    if (!r.skip) {
-      result = result.replace(new RegExp(escapeRegex(r.alias), "gi"), r.restored || r.original);
+    if (!r.skip && r.alias) {
+      result = result.replace(wordBoundaryRegex(r.alias, "gi"), r.restored || r.original);
     }
   }
   return result;

@@ -1,26 +1,61 @@
-export function detectAccount(folderName) {
-  const f = (folderName || "").toLowerCase();
-  if (f.includes("lockheed")) return { keyword: "lockheed", archiveFolder: "LM Transcripts" };
-  if (f.includes("l3harris") || (f.includes("l3") && f.includes("harris"))) return { keyword: "l3harris", archiveFolder: "L3 Transcripts" };
-  if (f.includes("northrop")) return { keyword: "northrop", archiveFolder: "NGC Transcripts" };
-  if (f.includes("frontgrade")) return { keyword: "frontgrade", archiveFolder: "Frontgrade Transcripts" };
-  return { keyword: null, archiveFolder: "Internal Transcripts" };
+// Default account configuration. Editable in Settings and persisted to the
+// portable config file. Each account maps a set of name aliases (used for
+// cross-vault keyword search and folder auto-detection) to a transcript
+// archive subfolder.
+export const DEFAULT_ACCOUNTS = [
+  { name: "Lockheed Martin", archiveFolder: "LM Transcripts", aliases: ["lockheed", "lmco"] },
+  { name: "L3Harris", archiveFolder: "L3 Transcripts", aliases: ["l3harris", "l3 harris"] },
+  { name: "Northrop Grumman", archiveFolder: "NGC Transcripts", aliases: ["northrop", "ngc"] },
+  { name: "Frontgrade", archiveFolder: "Frontgrade Transcripts", aliases: ["frontgrade"] },
+];
+
+const INTERNAL = { name: "Internal", archiveFolder: "Internal Transcripts", aliases: [] };
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Given transcript + title text, find the best-matching vault folder from a list
-export function matchVaultFolder(text, folders) {
-  const t = text.toLowerCase();
-  const keywords = [
-    { match: "lockheed", keywords: ["lockheed"] },
-    { match: "l3harris", keywords: ["l3harris", "l3 harris"] },
-    { match: "northrop", keywords: ["northrop"] },
-    { match: "frontgrade", keywords: ["frontgrade"] },
-  ];
-  for (const { match, keywords: kws } of keywords) {
-    if (kws.some((k) => t.includes(k))) {
-      const folder = folders.find((f) => f.name.toLowerCase().includes(match));
-      if (folder) return folder.path;
+// Use the provided account list, or fall back to defaults when missing/empty.
+function resolve(accounts) {
+  return accounts && accounts.length ? accounts : DEFAULT_ACCOUNTS;
+}
+
+// Whole-word, case-insensitive test for an alias appearing anywhere in text.
+// Word boundaries prevent false positives like "ngc" inside "engcomputer".
+export function textHasAlias(text, alias) {
+  const a = (alias || "").trim();
+  if (!a) return false;
+  const esc = escapeRegex(a);
+  const left = /^\w/.test(a) ? "\\b" : "";
+  const right = /\w$/.test(a) ? "\\b" : "";
+  return new RegExp(`${left}${esc}${right}`, "i").test(text || "");
+}
+
+// Detect which account a selected Obsidian folder name belongs to.
+// Uses substring matching since folder names are short and curated
+// (e.g. "3. Northrop"). Falls back to Internal when nothing matches.
+export function detectAccount(folderName, accounts) {
+  const f = (folderName || "").toLowerCase();
+  for (const acct of resolve(accounts)) {
+    if ((acct.aliases || []).some((a) => f.includes(a.toLowerCase()))) {
+      return { name: acct.name, archiveFolder: acct.archiveFolder, aliases: acct.aliases || [] };
     }
+  }
+  return { ...INTERNAL };
+}
+
+// Given free text (title + content), pick the best-matching vault folder path.
+// Returns null when no account alias appears in the text or no folder matches.
+export function matchVaultFolder(text, folders, accounts) {
+  for (const acct of resolve(accounts)) {
+    const aliases = acct.aliases || [];
+    if (!aliases.some((a) => textHasAlias(text, a))) continue;
+    const folder = (folders || []).find((fo) => {
+      const fn = (fo.name || "").toLowerCase();
+      if (acct.obsidianFolder && fn.includes(acct.obsidianFolder.toLowerCase())) return true;
+      return aliases.some((a) => fn.includes(a.toLowerCase()));
+    });
+    if (folder) return folder.path;
   }
   return null;
 }

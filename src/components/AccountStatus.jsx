@@ -40,14 +40,14 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setSaved(false);
 
     try {
-      const { keyword, archiveFolder } = detectAccount(selectedFolder);
+      const { aliases, archiveFolder } = detectAccount(selectedFolder, settings.accounts);
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
       if (settings.transcriptsPath && archiveFolder) {
         params.set("transcriptsPath", settings.transcriptsPath);
         params.set("accountFolder", archiveFolder);
       }
-      if (keyword) params.set("accountKeyword", keyword);
+      if (aliases?.length) params.set("accountAliases", aliases.join(","));
       const res = await fetch(`/api/notes?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load notes");
