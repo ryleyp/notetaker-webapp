@@ -1,0 +1,35 @@
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function applyReplacements(text, replacements) {
+  let result = text;
+  for (const r of replacements) {
+    if (!r.skip) {
+      result = result.replace(new RegExp(escapeRegex(r.original), "gi"), r.alias);
+    }
+  }
+  return result;
+}
+
+export function reverseReplacements(text, replacements) {
+  let result = text;
+  for (const r of [...replacements].reverse()) {
+    if (!r.skip) {
+      result = result.replace(new RegExp(escapeRegex(r.alias), "gi"), r.restored || r.original);
+    }
+  }
+  return result;
+}
+
+export function assignAliases(entities, existingReplacements) {
+  const usedAliases = new Set(existingReplacements.map((r) => r.alias));
+  return entities.map((e) => {
+    const prefix = e.type === "person" ? "PERSON" : "ORG";
+    let n = 1;
+    while (usedAliases.has(`${prefix}_${n}`)) n++;
+    const alias = `${prefix}_${n}`;
+    usedAliases.add(alias);
+    return { ...e, alias };
+  });
+}
