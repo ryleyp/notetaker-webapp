@@ -6,7 +6,7 @@ export async function POST(request) {
   const { transcript, apiKey, knownTerms = [] } = body;
 
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
-  if (!key) return NextResponse.json({ entities: [] });
+  if (!key) return NextResponse.json({ entities: [], skipped: true });
 
   const client = new Anthropic({ apiKey: key });
 

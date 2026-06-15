@@ -82,6 +82,7 @@ export default function Home() {
     setPendingAction(action);
 
     let newEntities = [];
+    let scanSkipped = false;
     try {
       const res = await fetch("/api/sanitize", {
         method: "POST",
@@ -89,9 +90,10 @@ export default function Home() {
         body: JSON.stringify({ transcript, apiKey: settings.apiKey || undefined, knownTerms }),
       });
       const data = await res.json();
+      if (data.skipped) scanSkipped = true;
       newEntities = data.entities || [];
     } catch {
-      // Detection failed — proceed without it
+      scanSkipped = true;
     }
 
     setSanitizing(false);
@@ -100,6 +102,9 @@ export default function Home() {
       const detected = assignAliases(newEntities, savedReplacements);
       setPendingReview(detected);
     } else {
+      if (scanSkipped) {
+        setProcessError("Sensitivity scan skipped — set your API key in Settings to enable name/company detection.");
+      }
       if (action === "generate") await doGenerate(savedReplacements);
       else await doSaveTranscript(savedReplacements);
     }
