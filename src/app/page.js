@@ -11,6 +11,7 @@ import AccountStatus from "@/components/AccountStatus";
 import SanitizeReview from "@/components/SanitizeReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
+import { matchVaultFolder } from "@/lib/accounts";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
@@ -239,13 +240,14 @@ export default function Home() {
     if (!notes || !settings.vaultPath) return;
     setSaving(true);
     try {
+      const folderPath = await resolveAutoFolder(meetingTitle + " " + notes);
       const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           notes,
           vaultPath: settings.vaultPath,
-          folderPath: selectedFolder,
+          folderPath,
           meetingTitle,
         }),
       });
@@ -285,13 +287,14 @@ export default function Home() {
     setSavingTranscript(true);
     try {
       const title = meetingTitle || "Transcript";
+      const folderPath = await resolveAutoFolder(title + " " + corrected);
       const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           notes: `# ${title}\n\n${corrected}`,
           vaultPath: settings.vaultPath,
-          folderPath: selectedFolder,
+          folderPath,
           meetingTitle: title,
         }),
       });
@@ -308,7 +311,7 @@ export default function Home() {
             transcript: corrected,
             meetingTitle: title,
             transcriptsPath: settings.transcriptsPath,
-            folder: selectedFolder || undefined,
+            folder: folderPath || undefined,
           }),
         }).catch(() => {});
       }
@@ -332,6 +335,21 @@ export default function Home() {
     setActiveReplacements([]);
     setTranscriptSaved(false);
     setTranscriptSavedPath("");
+  }
+
+  async function resolveAutoFolder(content) {
+    if (!settings.vaultPath || selectedFolder) return selectedFolder;
+    try {
+      const res = await fetch(`/api/folders?vaultPath=${encodeURIComponent(settings.vaultPath)}`);
+      const data = await res.json();
+      const folders = (data.folders || []).filter((f) => f.path !== "");
+      const matched = matchVaultFolder(content, folders);
+      if (matched) return matched;
+      const internal = folders.find((f) => f.name.toLowerCase().includes("internal"));
+      return internal?.path || "";
+    } catch {
+      return selectedFolder;
+    }
   }
 
   function handleModeChange(newMode) {

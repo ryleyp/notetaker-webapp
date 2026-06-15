@@ -9,10 +9,47 @@ function parseDateFromFilename(filename) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+function parseDateFromContent(content) {
+  const match = content.match(/^#[^\n]*?(\d{4}-\d{2}-\d{2})/m);
+  if (!match) return null;
+  const d = new Date(match[1]);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function readFolder(dir, threeMonthsAgo, source, sourceLabel) {
+  const notes = [];
+  if (!fs.existsSync(dir)) return notes;
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return notes; }
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const filePath = path.join(dir, entry.name);
+    let content;
+    try { content = fs.readFileSync(filePath, "utf-8"); } catch { continue; }
+
+    const date = parseDateFromFilename(entry.name) || parseDateFromContent(content);
+    if (!date || date < threeMonthsAgo) continue;
+
+    notes.push({
+      filename: entry.name,
+      date: date.toISOString().split("T")[0],
+      title: entry.name.replace(/^\d{4}-\d{2}-\d{2}\s*-\s*/, "").replace(/\.md$/, ""),
+      content,
+      source,
+      sourceLabel,
+    });
+  }
+  return notes;
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const vaultPath = searchParams.get("vaultPath");
   const folderPath = searchParams.get("folderPath") || "";
+  const transcriptsPath = searchParams.get("transcriptsPath") || "";
+  const accountFolder = searchParams.get("accountFolder") || "";
+  const accountKeyword = searchParams.get("accountKeyword") || "";
 
   if (!vaultPath) {
     return NextResponse.json({ error: "vaultPath is required" }, { status: 400 });
@@ -24,8 +61,6 @@ export async function GET(request) {
   if (!fs.existsSync(targetDir)) {
     return NextResponse.json({ error: "Folder does not exist" }, { status: 404 });
   }
-
-  // Only allow paths inside the vault
   if (!path.normalize(targetDir).startsWith(path.normalize(resolvedVault))) {
     return NextResponse.json({ error: "Path is outside vault" }, { status: 403 });
   }
@@ -33,42 +68,47 @@ export async function GET(request) {
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  let entries;
-  try {
-    entries = fs.readdirSync(targetDir, { withFileTypes: true });
-  } catch {
-    return NextResponse.json({ error: "Could not read folder" }, { status: 500 });
+  // 1. Primary Obsidian folder notes
+  const primaryNotes = readFolder(targetDir, threeMonthsAgo, "obsidian", folderPath || "Vault root");
+
+  // 2. Transcript archive folder
+  let transcriptNotes = [];
+  if (transcriptsPath && accountFolder) {
+    const archiveDir = path.join(path.resolve(transcriptsPath), accountFolder);
+    transcriptNotes = readFolder(archiveDir, threeMonthsAgo, "transcript", accountFolder);
   }
 
-  const notes = [];
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-
-    const date = parseDateFromFilename(entry.name);
-    if (!date || date < threeMonthsAgo) continue;
-
-    const filePath = path.join(targetDir, entry.name);
-    let content;
-    try {
-      content = fs.readFileSync(filePath, "utf-8");
-    } catch {
-      continue;
+  // 3. Cross-vault keyword search (other Obsidian subfolders)
+  let crossVaultNotes = [];
+  if (accountKeyword) {
+    let vaultEntries;
+    try { vaultEntries = fs.readdirSync(resolvedVault, { withFileTypes: true }); } catch {}
+    if (vaultEntries) {
+      const excludeName = folderPath.split("/")[0]; // top-level folder being excluded
+      for (const entry of vaultEntries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".") || entry.name === excludeName) continue;
+        const subDir = path.join(resolvedVault, entry.name);
+        const candidates = readFolder(subDir, threeMonthsAgo, "cross-vault", entry.name);
+        for (const note of candidates) {
+          if (note.content.toLowerCase().includes(accountKeyword.toLowerCase())) {
+            crossVaultNotes.push(note);
+          }
+        }
+      }
     }
-
-    const title = entry.name
-      .replace(/^\d{4}-\d{2}-\d{2}\s*-\s*/, "")
-      .replace(/\.md$/, "");
-
-    notes.push({
-      filename: entry.name,
-      date: date.toISOString().split("T")[0],
-      title,
-      content,
-    });
   }
 
-  // Sort newest first
-  notes.sort((a, b) => b.date.localeCompare(a.date));
+  const all = [...primaryNotes, ...transcriptNotes, ...crossVaultNotes];
+  all.sort((a, b) => b.date.localeCompare(a.date));
 
-  return NextResponse.json({ notes, total: notes.length });
+  return NextResponse.json({
+    notes: all,
+    total: all.length,
+    counts: {
+      obsidian: primaryNotes.length,
+      transcripts: transcriptNotes.length,
+      crossVault: crossVaultNotes.length,
+    },
+  });
 }

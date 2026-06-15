@@ -4,6 +4,7 @@ import { useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { calcCost } from "@/lib/pricing";
+import { detectAccount } from "@/lib/accounts";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -16,6 +17,7 @@ function threeMonthsAgoLabel() {
 export default function AccountStatus({ settings, onSettingsClick }) {
   const [selectedFolder, setSelectedFolder] = useState("");
   const [loadedNotes, setLoadedNotes] = useState(null); // null = not loaded yet
+  const [loadCounts, setLoadCounts] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,16 +35,24 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setLoading(true);
     setLoadError(null);
     setLoadedNotes(null);
+    setLoadCounts(null);
     setOutput("");
     setSaved(false);
 
     try {
+      const { keyword, archiveFolder } = detectAccount(selectedFolder);
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
+      if (settings.transcriptsPath && archiveFolder) {
+        params.set("transcriptsPath", settings.transcriptsPath);
+        params.set("accountFolder", archiveFolder);
+      }
+      if (keyword) params.set("accountKeyword", keyword);
       const res = await fetch(`/api/notes?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load notes");
       setLoadedNotes(data.notes);
+      setLoadCounts(data.counts);
     } catch (e) {
       setLoadError(e.message);
     } finally {
@@ -66,6 +76,8 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           apiKey: settings.apiKey || undefined,
           model: settings.model || undefined,
           today: TODAY,
+          replacements: settings.replacements || [],
+          corrections: settings.corrections || [],
         }),
       });
       const data = await res.json();
@@ -106,6 +118,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
 
   function handleReset() {
     setLoadedNotes(null);
+    setLoadCounts(null);
     setOutput("");
     setSaved(false);
     setSavedPath("");
@@ -147,11 +160,21 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                       <p className="text-sm font-medium text-green-700">
                         Found {loadedNotes.length} note{loadedNotes.length !== 1 ? "s" : ""} in the past quarter
                       </p>
+                      {loadCounts && (
+                        <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
+                          {loadCounts.obsidian > 0 && <span>📝 {loadCounts.obsidian} Obsidian</span>}
+                          {loadCounts.transcripts > 0 && <span>🎙 {loadCounts.transcripts} Transcripts</span>}
+                          {loadCounts.crossVault > 0 && <span>🔍 {loadCounts.crossVault} Cross-folder</span>}
+                        </div>
+                      )}
                       <ul className="text-xs text-gray-500 space-y-0.5 max-h-32 overflow-y-auto">
                         {loadedNotes.map((n) => (
                           <li key={n.filename} className="flex gap-2">
                             <span className="font-mono text-gray-400 flex-shrink-0">{n.date}</span>
                             <span className="truncate">{n.title}</span>
+                            {n.source !== "obsidian" && (
+                              <span className="text-gray-400 flex-shrink-0 italic">{n.sourceLabel}</span>
+                            )}
                           </li>
                         ))}
                       </ul>
