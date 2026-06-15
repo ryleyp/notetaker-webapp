@@ -112,6 +112,7 @@ export default function Home() {
 
   async function handleProcess() {
     if (!transcript.trim()) return;
+    if (!settings.vaultPath) { setShowSettings(true); return; }
     setProcessError(null);
     setNotes("");
     setSaved(false);
@@ -121,7 +122,8 @@ export default function Home() {
   }
 
   async function handleSaveTranscriptButton() {
-    if (!transcript.trim() || !settings.vaultPath) return;
+    if (!transcript.trim()) return;
+    if (!settings.vaultPath) { setShowSettings(true); return; }
     setTranscriptSaved(false);
     setTranscriptSavedPath("");
     setPendingReview(null);
