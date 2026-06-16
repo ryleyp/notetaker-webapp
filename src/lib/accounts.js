@@ -3,7 +3,7 @@
 // cross-vault keyword search and folder auto-detection) to a transcript
 // archive subfolder.
 export const DEFAULT_ACCOUNTS = [
-  { name: "Lockheed Martin", archiveFolder: "LM Transcripts", aliases: ["lockheed", "lmco"] },
+  { name: "Lockheed Martin", archiveFolder: "LM Transcripts", aliases: ["lockheed", "lmco", "mfc", "rms"] },
   { name: "L3Harris", archiveFolder: "L3 Transcripts", aliases: ["l3harris", "l3 harris"] },
   { name: "Northrop Grumman", archiveFolder: "NGC Transcripts", aliases: ["northrop", "ngc"] },
   { name: "Frontgrade", archiveFolder: "Frontgrade Transcripts", aliases: ["frontgrade"] },
