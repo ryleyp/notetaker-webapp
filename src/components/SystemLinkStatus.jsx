@@ -4,8 +4,8 @@ import { useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { calcCost } from "@/lib/pricing";
-import { detectAccount } from "@/lib/accounts";
-import { textHasAlias } from "@/lib/accounts";
+import { detectAccount, textHasAlias } from "@/lib/accounts";
+import { reverseReplacements } from "@/lib/sanitize";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -111,11 +111,39 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
           productFocus: SL_PRODUCT,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Synthesis failed");
-      setOutput(data.output);
-      if (data.usage) setSynthCost(calcCost(data.usage, data.model));
-      if (data.droppedCount) setTrimmedCount(data.droppedCount);
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Synthesis failed");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
+          const evt = JSON.parse(part.slice(6));
+          if (evt.type === "delta") {
+            accumulated += evt.text;
+            setOutput(accumulated);
+          } else if (evt.type === "done") {
+            const reps = settings.replacements || [];
+            setOutput(reps.length ? reverseReplacements(accumulated, reps) : accumulated);
+            if (evt.usage) setSynthCost(calcCost(evt.usage, evt.model));
+            if (evt.droppedCount) setTrimmedCount(evt.droppedCount);
+          } else if (evt.type === "error") {
+            throw new Error(evt.message);
+          }
+        }
+      }
     } catch (e) {
       setSynthError(e.message);
     } finally {
@@ -309,25 +337,41 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
         </div>
       )}
 
-      {output && (
+      {(output || synthesizing) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">SystemLink Status Ready</h2>
-            <button onClick={handleReset} className="btn-secondary">Start Over</button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {synthesizing ? "Generating…" : "SystemLink Status Ready"}
+              </h2>
+              {synthesizing && (
+                <svg className="animate-spin w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+            </div>
+            {!synthesizing && <button onClick={handleReset} className="btn-secondary">Start Over</button>}
           </div>
           {trimmedCount > 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               {trimmedCount} older note{trimmedCount !== 1 ? "s" : ""} were excluded to stay within the model's context limit. The summary covers your most recent notes.
             </p>
           )}
-          <NotesPreview
-            notes={output}
-            onSave={handleSave}
-            saving={saving}
-            saved={saved}
-            savedPath={savedPath}
-            cost={synthCost}
-          />
+          {output && (
+            <NotesPreview
+              notes={output}
+              onSave={handleSave}
+              saving={saving}
+              saved={saved}
+              savedPath={savedPath}
+              cost={synthCost}
+              streaming={synthesizing}
+            />
+          )}
+          {synthesizing && !output && (
+            <div className="card p-6 text-sm text-gray-500 animate-pulse">Waiting for Claude…</div>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { applyCorrections, applyReplacements, reverseReplacements } from "@/lib/sanitize";
+import { applyCorrections, applyReplacements } from "@/lib/sanitize";
 
 function buildSynthesisPrompt(notes, today) {
   const threeMonthsAgo = new Date(today);
@@ -9,7 +8,7 @@ function buildSynthesisPrompt(notes, today) {
 
   const noteBlocks = notes
     .map((n, i) => {
-      const tag = n.source === "transcript" ? " [Transcript]" : n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
+      const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
       return `### Source ${i + 1}: ${n.title} (${n.date})${tag}\n\n${n.content}`;
     })
     .join("\n\n---\n\n");
@@ -22,7 +21,7 @@ Scope rules:
 - Hardware: mention only when directly tied to NI software usage
 - Omit purely hardware or non-NI topics
 
-Sources include Obsidian meeting notes, raw transcripts [Transcript], and notes from other folders that mention this account [folder name].
+Sources include Obsidian meeting notes and notes from other folders that mention this account [folder name].
 
 ---
 SOURCES:
@@ -157,7 +156,7 @@ function buildProductPrompt(notes, today, product) {
 
   const noteBlocks = notes
     .map((n, i) => {
-      const tag = n.source === "transcript" ? " [Transcript]" : n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
+      const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
       return `### Source ${i + 1}: ${n.title} (${n.date})${tag}\n\n${n.content}`;
     })
     .join("\n\n---\n\n");
@@ -290,11 +289,9 @@ Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
 // Conservative budget: 200k limit minus 8k output minus ~10k prompt template overhead.
-// Notes are assumed sorted newest-first; we keep the most recent ones that fit.
-const MAX_NOTE_CHARS = (200_000 - 8_192 - 10_000) * 4; // ~724k chars
+const MAX_NOTE_CHARS = (200_000 - 8_192 - 10_000) * 4;
 
 function fitNotes(notes) {
-  // Per-note cap: prevent a single enormous transcript from consuming everything.
   const capped = notes.map((n) => ({
     ...n,
     content: n.content.length > 80_000 ? n.content.slice(0, 80_000) + "\n\n[truncated — note exceeds per-source limit]" : n.content,
@@ -317,52 +314,65 @@ export async function POST(request) {
     const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus } = body;
 
     if (!notes || notes.length === 0) {
-      return NextResponse.json({ error: "No notes provided" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
 
-    // Apply corrections then replacements to each note before sending to Claude
     const sanitizedNotes = notes.map((n) => ({
       ...n,
       title: applyReplacements(applyCorrections(n.title || "", corrections), replacements),
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
 
-    // Trim to fit within context window, keeping most-recent notes first
     const { kept, dropped } = fitNotes(sanitizedNotes);
 
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
-      return NextResponse.json(
-        { error: "Anthropic API key is required" },
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({ error: "Anthropic API key is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
 
     const client = new Anthropic({ apiKey: key });
+    const encoder = new TextEncoder();
 
-    const message = await client.messages.create({
-      model: model || "claude-sonnet-4-6",
-      max_tokens: 8192,
-      system:
-        "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
-      messages: [
-        {
-          role: "user",
-          content: productFocus
-            ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus)
-            : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0]),
-        },
-      ],
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (obj) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+        try {
+          const messageStream = client.messages.stream({
+            model: model || "claude-sonnet-4-6",
+            max_tokens: 8192,
+            system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
+            messages: [{
+              role: "user",
+              content: productFocus
+                ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus)
+                : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0]),
+            }],
+          });
+
+          for await (const event of messageStream) {
+            if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+              send({ type: "delta", text: event.delta.text });
+            }
+          }
+
+          const final = await messageStream.finalMessage();
+          send({ type: "done", noteCount: kept.length, droppedCount: dropped, usage: final.usage, model: model || "claude-sonnet-4-6" });
+        } catch (error) {
+          send({ type: "error", message: error?.message || "Synthesis failed" });
+        } finally {
+          controller.close();
+        }
+      },
     });
 
-    const raw = message.content[0]?.text || "";
-    const output = replacements.length ? reverseReplacements(raw, replacements) : raw;
-    return NextResponse.json({ output, noteCount: kept.length, droppedCount: dropped, usage: message.usage, model: model || "claude-sonnet-4-6" });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
   } catch (error) {
-    console.error("Synthesis error:", error);
-    return NextResponse.json(
-      { error: error?.message || "Synthesis failed" },
-      { status: error?.status || 500 }
-    );
+    return new Response(JSON.stringify({ error: error?.message || "Synthesis failed" }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 }
