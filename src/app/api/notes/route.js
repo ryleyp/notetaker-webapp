@@ -95,6 +95,7 @@ export async function GET(request) {
       for (const entry of vaultEntries) {
         if (!entry.isDirectory()) continue;
         if (entry.name.startsWith(".") || entry.name === excludeName) continue;
+        if (entry.name.toLowerCase().includes("transcript")) continue;
         const subDir = path.join(resolvedVault, entry.name);
         const candidates = readFolder(subDir, threeMonthsAgo, "cross-vault", entry.name);
         for (const note of candidates) {
