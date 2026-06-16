@@ -130,6 +130,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           replacements: settings.replacements || [],
           corrections: settings.corrections || [],
           accountName: detectAccount(selectedFolder, settings.accounts).name,
+          allAccounts: settings.accounts || [],
         }),
       });
 

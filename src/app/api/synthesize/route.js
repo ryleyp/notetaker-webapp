@@ -1,7 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { applyCorrections, applyReplacements } from "@/lib/sanitize";
 
-function buildSynthesisPrompt(notes, today, accountName) {
+function buildExclusionList(accountName, allAccounts) {
+  if (!allAccounts?.length) return "";
+  const others = allAccounts.filter((a) => a.name !== accountName && a.name !== "Internal");
+  if (!others.length) return "";
+  const lines = others.map((a) => {
+    const aliases = (a.aliases || []).join(", ");
+    return aliases ? `  - ${a.name} (also referred to as: ${aliases})` : `  - ${a.name}`;
+  });
+  return `\nOther customer accounts that exist in these notes — NEVER mention them by name or alias:\n${lines.join("\n")}\n`;
+}
+
+function buildSynthesisPrompt(notes, today, accountName, allAccounts) {
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
@@ -19,12 +30,12 @@ function buildSynthesisPrompt(notes, today, accountName) {
     ? `This is an Account Status report for **${acct} ONLY**.
 
 CRITICAL ACCOUNT SCOPING RULES — these override everything else:
-- Report exclusively on ${acct}. Do NOT discuss, compare to, or mention any other customer account (e.g. Lockheed Martin, L3Harris, Northrop Grumman, Frontgrade, or any other company).
+- Report exclusively on ${acct}. Do NOT discuss, compare to, or mention any other customer account by any name or alias.
 - Some sources come from other folders and may contain content about other accounts. Use ONLY the portions that pertain to ${acct}. Ignore everything about any other account, even within the same note.
 - If a source mentions ${acct} only in passing, extract just the ${acct}-relevant parts.
 - If a source has no ${acct} content, ignore it entirely.
 - Never write a sentence that is about another account. The reader only cares about ${acct}.
-
+${buildExclusionList(acct, allAccounts)}
 `
     : "";
 
@@ -164,7 +175,7 @@ For each pillar: assign a **G/Y/R** rating, explain it in 1–2 sentences, then 
 Highest-priority next steps for the CS team in the coming weeks, in priority order. Scoped to NI Software activities.`;
 }
 
-function buildProductPrompt(notes, today, product, accountName) {
+function buildProductPrompt(notes, today, product, accountName, allAccounts) {
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
@@ -185,11 +196,11 @@ function buildProductPrompt(notes, today, product, accountName) {
     ? `This report covers **${p} at ${acct} ONLY**.
 
 CRITICAL ACCOUNT SCOPING RULES — these override everything else:
-- Report exclusively on ${acct}'s use of ${p}. Do NOT discuss, compare to, or mention any other customer account (e.g. Lockheed Martin, L3Harris, Northrop Grumman, Frontgrade, or any other company).
+- Report exclusively on ${acct}'s use of ${p}. Do NOT discuss, compare to, or mention any other customer account by any name or alias.
 - Some sources come from other folders and may contain content about other accounts. Use ONLY the portions about ${acct}. Ignore everything about any other account, even within the same note.
 - If a source has no ${acct} + ${p} content, ignore it entirely.
 - Never write a sentence about ${p} at another account. The reader only cares about ${acct}.
-
+${buildExclusionList(acct, allAccounts)}
 `
     : "";
 
@@ -365,7 +376,7 @@ function fitNotes(notes, model) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName, allAccounts = [] } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -398,8 +409,8 @@ export async function POST(request) {
             messages: [{
               role: "user",
               content: productFocus
-                ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus, accountName)
-                : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0], accountName),
+                ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
+                : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0], accountName, allAccounts),
             }],
           });
 

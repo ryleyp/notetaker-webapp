@@ -130,6 +130,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
           corrections: settings.corrections || [],
           productFocus: SL_PRODUCT,
           accountName: detectAccount(selectedFolder, settings.accounts).name,
+          allAccounts: settings.accounts || [],
         }),
       });
 
