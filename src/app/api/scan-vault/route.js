@@ -56,13 +56,6 @@ export async function GET(request) {
 
   walkDir(resolvedVault, resolvedVault, "Vault", allFiles, counter);
 
-  if (transcriptsPath) {
-    const resolvedArchive = path.resolve(transcriptsPath);
-    if (fs.existsSync(resolvedArchive)) {
-      walkDir(resolvedArchive, resolvedArchive, "Transcripts", allFiles, counter);
-    }
-  }
-
   const accountMatches = accounts.map((a) => ({ account: a, files: [] }));
   const unmatched = [];
 
