@@ -189,8 +189,8 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
           </p>
           <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden w-fit">
             {[
-              { id: "claude-haiku-4-5", label: "Haiku 4.5", sub: "3× cheaper" },
-              { id: "claude-sonnet-4-6", label: "Sonnet 4.6", sub: "Best quality" },
+              { id: "claude-haiku-4-5", label: "Haiku 4.5", sub: "3× cheaper · 200k ctx" },
+              { id: "claude-sonnet-4-6", label: "Sonnet 4.6", sub: "Best quality · 1M ctx" },
             ].map((m) => (
               <button
                 key={m.id}

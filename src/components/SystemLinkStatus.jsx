@@ -19,6 +19,16 @@ const SYNTHESIS_PRICING = {
   "claude-sonnet-4-6": { input: 3.0, output: 15.0, label: "Sonnet" },
 };
 
+const MODEL_CONTEXT = {
+  "claude-opus-4-8": 1_000_000,
+  "claude-sonnet-4-6": 1_000_000,
+  "claude-haiku-4-5": 200_000,
+};
+
+function contextLimit(model) {
+  return MODEL_CONTEXT[model] || 200_000;
+}
+
 function threeMonthsAgoLabel() {
   const d = new Date();
   d.setMonth(d.getMonth() - 3);
@@ -303,6 +313,8 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
 
           {filteredNotes?.length > 0 && showConfirm && (() => {
             const est = estimateUsage(filteredNotes, model);
+            const limit = contextLimit(model);
+            const warnAt = limit - 20_000;
             return (
               <div className="mt-5 pt-5 border-t border-gray-100">
                 <h4 className="text-sm font-semibold text-gray-800 mb-3">Pre-flight check</h4>
@@ -313,15 +325,17 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                   </p>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
                     <span className="text-gray-500">Est. input</span>
-                    <span className={`font-mono ${est.inputTokens > 180_000 ? "text-red-600 font-semibold" : "text-gray-700"}`}>~{est.inputTokens.toLocaleString()} tokens</span>
+                    <span className={`font-mono ${est.inputTokens > warnAt ? "text-red-600 font-semibold" : "text-gray-700"}`}>~{est.inputTokens.toLocaleString()} tokens</span>
                     <span className="text-gray-500">Est. output</span>
                     <span className="font-mono text-gray-700">~{est.outputTokens.toLocaleString()} tokens</span>
+                    <span className="text-gray-500">Context limit</span>
+                    <span className="font-mono text-gray-700">{(limit / 1000).toLocaleString()}k tokens ({est.label})</span>
                     <span className="text-gray-500">Est. cost</span>
-                    <span className="font-mono text-gray-700">~${est.cost.toFixed(4)} ({est.label})</span>
+                    <span className="font-mono text-gray-700">~${est.cost.toFixed(4)}</span>
                   </div>
-                  {est.inputTokens > 180_000 && (
+                  {est.inputTokens > warnAt && (
                     <p className="text-xs text-red-700 font-medium">
-                      Input is near or over the 200k token limit — oldest notes will be trimmed automatically to fit.
+                      Input is near or over this model's {(limit / 1000).toLocaleString()}k token limit — oldest notes will be trimmed automatically to fit. Switch to Sonnet (1M context) in Settings to include more.
                     </p>
                   )}
                   <p className="text-xs text-amber-700">

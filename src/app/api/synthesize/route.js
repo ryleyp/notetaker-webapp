@@ -317,20 +317,45 @@ Aggregate ALL unchecked action items (- [ ]) related to ${p} from across all sou
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
-// Conservative budget: 200k limit minus 8k output minus ~10k prompt template overhead.
-const MAX_NOTE_CHARS = (200_000 - 8_192 - 10_000) * 4;
+// Context window per model (input + output tokens). Sonnet 4.6 and the Opus
+// family support 1M tokens; Haiku 4.5 supports 200K. Unknown models fall back
+// to the conservative 200K so we never over-fill the prompt.
+const MODEL_CONTEXT = {
+  "claude-opus-4-8": 1_000_000,
+  "claude-opus-4-7": 1_000_000,
+  "claude-opus-4-6": 1_000_000,
+  "claude-opus-4-5": 1_000_000,
+  "claude-sonnet-4-6": 1_000_000,
+  "claude-haiku-4-5": 200_000,
+};
 
-function fitNotes(notes) {
+function contextTokens(model) {
+  return MODEL_CONTEXT[model] || 200_000;
+}
+
+// Char budget for note content: context minus 8k output minus ~12k template
+// overhead, in tokens, times ~4 chars/token, with a 5% safety margin.
+function budgetChars(model) {
+  const usableTokens = Math.floor((contextTokens(model) - 8_192 - 12_000) * 0.95);
+  return usableTokens * 4;
+}
+
+function fitNotes(notes, model) {
+  // Per-note cap scales with the model's context — large-context models can
+  // hold much bigger individual notes before a single one needs trimming.
+  const perNoteCap = contextTokens(model) >= 1_000_000 ? 300_000 : 80_000;
+  const maxChars = budgetChars(model);
+
   const capped = notes.map((n) => ({
     ...n,
-    content: n.content.length > 80_000 ? n.content.slice(0, 80_000) + "\n\n[truncated — note exceeds per-source limit]" : n.content,
+    content: n.content.length > perNoteCap ? n.content.slice(0, perNoteCap) + "\n\n[truncated — note exceeds per-source limit]" : n.content,
   }));
 
   let total = 0;
   const kept = [];
   for (const n of capped) {
     const size = (n.title?.length || 0) + n.content.length + 200;
-    if (total + size > MAX_NOTE_CHARS && kept.length > 0) break;
+    if (total + size > maxChars && kept.length > 0) break;
     kept.push(n);
     total += size;
   }
@@ -352,7 +377,7 @@ export async function POST(request) {
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
 
-    const { kept, dropped } = fitNotes(sanitizedNotes);
+    const { kept, dropped } = fitNotes(sanitizedNotes, model || "claude-sonnet-4-6");
 
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
