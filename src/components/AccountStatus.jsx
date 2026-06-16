@@ -125,7 +125,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
         body: JSON.stringify({
           notes: loadedNotes,
           apiKey: settings.apiKey || undefined,
-          model: settings.model || undefined,
+          model,
           today: TODAY,
           replacements: settings.replacements || [],
           corrections: settings.corrections || [],
@@ -210,8 +210,9 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setVaultScanOpen(false);
   }
 
+  const [model, setModel] = useState(settings.model || "claude-haiku-4-5");
+
   const folderLabel = selectedFolder || "(Vault root)";
-  const model = settings.model || "claude-sonnet-4-6";
 
   return (
     <div className="space-y-4">
@@ -314,6 +315,27 @@ export default function AccountStatus({ settings, onSettingsClick }) {
 
           {loadedNotes?.length > 0 && !showConfirm && (
             <div className="mt-5 pt-5 border-t border-gray-100">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-xs text-gray-500 font-medium">Model</span>
+                <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden">
+                  {[
+                    { id: "claude-haiku-4-5", label: "Haiku", sub: "Faster · 200k" },
+                    { id: "claude-sonnet-4-6", label: "Sonnet", sub: "Best · 1M ctx" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setModel(m.id)}
+                      className={`px-3 py-1.5 text-left transition-colors ${
+                        model === m.id ? "bg-obsidian-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="text-xs font-medium leading-tight">{m.label}</div>
+                      <div className={`text-xs leading-tight ${model === m.id ? "text-obsidian-200" : "text-gray-400"}`}>{m.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
               {synthError && (
                 <p className="mb-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-200">
                   {synthError}
@@ -338,7 +360,27 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             const warnAt = limit - 20_000; // leave room for output + overhead
             return (
               <div className="mt-5 pt-5 border-t border-gray-100">
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">Pre-flight check</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-800">Pre-flight check</h4>
+                  <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden">
+                    {[
+                      { id: "claude-haiku-4-5", label: "Haiku", sub: "200k" },
+                      { id: "claude-sonnet-4-6", label: "Sonnet", sub: "1M" },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setModel(m.id)}
+                        className={`px-3 py-1 text-left transition-colors ${
+                          model === m.id ? "bg-obsidian-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span className="text-xs font-medium">{m.label}</span>
+                        <span className={`text-xs ml-1 ${model === m.id ? "text-obsidian-200" : "text-gray-400"}`}>{m.sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3 text-sm">
                   {loadCounts && (
                     <div className="flex gap-4 text-xs text-gray-600">
@@ -358,7 +400,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                   </div>
                   {est.inputTokens > warnAt && (
                     <p className="text-xs text-red-700 font-medium">
-                      Input is near or over this model's {(limit / 1000).toLocaleString()}k token limit — oldest notes will be trimmed automatically to fit. Switch to Sonnet (1M context) in Settings to include more.
+                      Input is near or over this model's {(limit / 1000).toLocaleString()}k token limit — oldest notes will be trimmed automatically to fit. Switch to Sonnet above to include more notes.
                     </p>
                   )}
                   <p className="text-xs text-amber-700">
