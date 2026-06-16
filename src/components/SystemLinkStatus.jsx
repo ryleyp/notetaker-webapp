@@ -203,7 +203,6 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                       {loadCounts && (
                         <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
                           {loadCounts.obsidian > 0 && <span>📝 {loadCounts.obsidian} Obsidian</span>}
-                          {loadCounts.transcripts > 0 && <span>🎙 {loadCounts.transcripts} Transcripts</span>}
                           {loadCounts.crossVault > 0 && <span>🔍 {loadCounts.crossVault} Cross-folder</span>}
                         </div>
                       )}

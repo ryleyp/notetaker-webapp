@@ -48,10 +48,6 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const vaultPath = searchParams.get("vaultPath");
   const folderPath = searchParams.get("folderPath") || "";
-  const transcriptsPath = searchParams.get("transcriptsPath") || "";
-  const accountFolder = searchParams.get("accountFolder") || "";
-  // Account name aliases for cross-vault search (comma-separated). Falls back
-  // to the legacy single-keyword param for backward compatibility.
   const accountAliases = (searchParams.get("accountAliases") || searchParams.get("accountKeyword") || "")
     .split(",")
     .map((s) => s.trim())
@@ -77,21 +73,14 @@ export async function GET(request) {
   // 1. Primary Obsidian folder notes
   const primaryNotes = readFolder(targetDir, threeMonthsAgo, "obsidian", folderPath || "Vault root");
 
-  // 2. Transcript archive folder
-  let transcriptNotes = [];
-  if (transcriptsPath && accountFolder) {
-    const archiveDir = path.join(path.resolve(transcriptsPath), accountFolder);
-    transcriptNotes = readFolder(archiveDir, threeMonthsAgo, "transcript", accountFolder);
-  }
-
-  // 3. Cross-vault keyword search (other Obsidian subfolders). A note matches
-  // if any account alias appears as a whole word in its content.
+  // 2. Cross-vault keyword search (other Obsidian subfolders, skipping transcript folders).
+  // A note matches if any account alias appears as a whole word in its content.
   let crossVaultNotes = [];
   if (accountAliases.length) {
     let vaultEntries;
     try { vaultEntries = fs.readdirSync(resolvedVault, { withFileTypes: true }); } catch {}
     if (vaultEntries) {
-      const excludeName = folderPath.split("/")[0]; // top-level folder being excluded
+      const excludeName = folderPath.split("/")[0];
       for (const entry of vaultEntries) {
         if (!entry.isDirectory()) continue;
         if (entry.name.startsWith(".") || entry.name === excludeName) continue;
@@ -107,7 +96,7 @@ export async function GET(request) {
     }
   }
 
-  const all = [...primaryNotes, ...transcriptNotes, ...crossVaultNotes];
+  const all = [...primaryNotes, ...crossVaultNotes];
   all.sort((a, b) => b.date.localeCompare(a.date));
 
   return NextResponse.json({
@@ -115,7 +104,6 @@ export async function GET(request) {
     total: all.length,
     counts: {
       obsidian: primaryNotes.length,
-      transcripts: transcriptNotes.length,
       crossVault: crossVaultNotes.length,
     },
   });
