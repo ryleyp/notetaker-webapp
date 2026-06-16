@@ -29,6 +29,16 @@ function noteHasSL(note) {
   return SL_PRODUCT.aliases.some((a) => textHasAlias(note.content + " " + note.title, a));
 }
 
+// A note qualifies for SL Status if it mentions SystemLink AND is tied to the
+// selected account. Notes in the account's own folder are account-scoped by
+// location; cross-folder notes must additionally mention an account alias.
+function noteMatchesSL(note, accountAliases) {
+  if (!noteHasSL(note)) return false;
+  if (note.source !== "cross-vault") return true;
+  const text = note.content + " " + note.title;
+  return (accountAliases || []).some((a) => textHasAlias(text, a));
+}
+
 function estimateUsage(notes, model) {
   const chars = notes.reduce((s, n) => s + (n.content?.length || 0) + (n.title?.length || 0), 0);
   const inputTokens = Math.ceil(chars / 4) + 2500;
@@ -78,7 +88,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load notes");
 
-      const sl = data.notes.filter(noteHasSL);
+      const sl = data.notes.filter((n) => noteMatchesSL(n, aliases));
       setAllNotes(data.notes);
       setFilteredNotes(sl);
       setLoadCounts(data.counts);
