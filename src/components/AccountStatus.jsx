@@ -63,7 +63,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setVaultScanOpen(false);
 
     try {
-      const { aliases } = detectAccount(selectedFolder, settings.accounts);
+      const { name: accountName, archiveFolder, aliases } = detectAccount(selectedFolder, settings.accounts);
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
@@ -73,7 +73,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
       if (settings.transcriptsPath) scanParams.set("transcriptsPath", settings.transcriptsPath);
       if (settings.accounts?.length) scanParams.set("accounts", JSON.stringify(
         // Only scan for the detected account, not all accounts
-        [{ name: archiveFolder, archiveFolder, aliases: aliases || [] }]
+        [{ name: accountName, archiveFolder, aliases: aliases || [] }]
       ));
 
       const [notesRes, scanRes] = await Promise.all([
@@ -119,6 +119,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           today: TODAY,
           replacements: settings.replacements || [],
           corrections: settings.corrections || [],
+          accountName: detectAccount(selectedFolder, settings.accounts).name,
         }),
       });
 

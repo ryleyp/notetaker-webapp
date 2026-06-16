@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { applyCorrections, applyReplacements } from "@/lib/sanitize";
 
-function buildSynthesisPrompt(notes, today) {
+function buildSynthesisPrompt(notes, today, accountName) {
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+
+  const acct = accountName && accountName !== "Internal" ? accountName : null;
 
   const noteBlocks = notes
     .map((n, i) => {
@@ -13,10 +15,23 @@ function buildSynthesisPrompt(notes, today) {
     })
     .join("\n\n---\n\n");
 
+  const accountScope = acct
+    ? `This is an Account Status report for **${acct} ONLY**.
+
+CRITICAL ACCOUNT SCOPING RULES — these override everything else:
+- Report exclusively on ${acct}. Do NOT discuss, compare to, or mention any other customer account (e.g. Lockheed Martin, L3Harris, Northrop Grumman, Frontgrade, or any other company).
+- Some sources come from other folders and may contain content about other accounts. Use ONLY the portions that pertain to ${acct}. Ignore everything about any other account, even within the same note.
+- If a source mentions ${acct} only in passing, extract just the ${acct}-relevant parts.
+- If a source has no ${acct} content, ignore it entirely.
+- Never write a sentence that is about another account. The reader only cares about ${acct}.
+
+`
+    : "";
+
   return `You are a NI Software Customer Success Manager analyzing ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}). Produce a detailed Account Status summary scoped to NI Software.
 
-Scope rules:
-- Focus on NI Software products, licenses, adoption, and CS activities
+${accountScope}Scope rules:
+- Focus on NI Software products, licenses, adoption, and CS activities${acct ? ` at ${acct}` : ""}
 - Third-party software: mention briefly if relevant to NI context
 - Hardware: mention only when directly tied to NI software usage
 - Omit purely hardware or non-NI topics
@@ -30,9 +45,9 @@ ${noteBlocks}
 
 ---
 
-Generate the Account Status document using EXACTLY this structure. Be specific — reference actual names, dates, products, and details from the sources. Do not be vague.
+Generate the Account Status document using EXACTLY this structure. Be specific — reference actual names, dates, products, and details from the sources. Do not be vague.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
 
-# Account Status — ${rangeLabel}
+# ${acct ? `${acct} ` : ""}Account Status — ${rangeLabel}
 
 *Synthesized from ${notes.length} sources*
 
@@ -149,10 +164,12 @@ For each pillar: assign a **G/Y/R** rating, explain it in 1–2 sentences, then 
 Highest-priority next steps for the CS team in the coming weeks, in priority order. Scoped to NI Software activities.`;
 }
 
-function buildProductPrompt(notes, today, product) {
+function buildProductPrompt(notes, today, product, accountName) {
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+
+  const acct = accountName && accountName !== "Internal" ? accountName : null;
 
   const noteBlocks = notes
     .map((n, i) => {
@@ -164,10 +181,22 @@ function buildProductPrompt(notes, today, product) {
   const p = product.name;
   const aliases = product.aliases?.join(", ") || p;
 
-  return `You are a NI Software Customer Success Manager reviewing ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}). Produce a focused **${p} Account Status** covering only content relevant to ${p} (also referred to as: ${aliases}).
+  const accountScope = acct
+    ? `This report covers **${p} at ${acct} ONLY**.
 
-Scope rules:
-- Focus exclusively on ${p} — licensing, adoption, deployment, support, training, and expansion
+CRITICAL ACCOUNT SCOPING RULES — these override everything else:
+- Report exclusively on ${acct}'s use of ${p}. Do NOT discuss, compare to, or mention any other customer account (e.g. Lockheed Martin, L3Harris, Northrop Grumman, Frontgrade, or any other company).
+- Some sources come from other folders and may contain content about other accounts. Use ONLY the portions about ${acct}. Ignore everything about any other account, even within the same note.
+- If a source has no ${acct} + ${p} content, ignore it entirely.
+- Never write a sentence about ${p} at another account. The reader only cares about ${acct}.
+
+`
+    : "";
+
+  return `You are a NI Software Customer Success Manager reviewing ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}). Produce a focused **${p} Account Status**${acct ? ` for ${acct}` : ""} covering only content relevant to ${p} (also referred to as: ${aliases}).
+
+${accountScope}Scope rules:
+- Focus exclusively on ${p}${acct ? ` at ${acct}` : ""} — licensing, adoption, deployment, support, training, and expansion
 - Mention integrations with other NI tools only when directly tied to ${p}
 - Omit topics unrelated to ${p}
 
@@ -178,9 +207,9 @@ ${noteBlocks}
 
 ---
 
-Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.
+Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
 
-# ${p} Account Status — ${rangeLabel}
+# ${p} Account Status${acct ? ` — ${acct}` : ""} — ${rangeLabel}
 
 *Synthesized from ${notes.length} sources*
 
@@ -311,7 +340,7 @@ function fitNotes(notes) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -344,8 +373,8 @@ export async function POST(request) {
             messages: [{
               role: "user",
               content: productFocus
-                ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus)
-                : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0]),
+                ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus, accountName)
+                : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0], accountName),
             }],
           });
 
