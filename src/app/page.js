@@ -8,7 +8,6 @@ import TranscriptInput from "@/components/TranscriptInput";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
-import VaultScan from "@/components/VaultScan";
 import SanitizeReview from "@/components/SanitizeReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
@@ -443,10 +442,6 @@ export default function Home() {
           />
         )}
 
-        {/* ── Vault Scan mode ── */}
-        {mode === "scan" && (
-          <VaultScan settings={settings} onSettingsClick={() => setShowSettings(true)} />
-        )}
 
         {/* ── New Note mode ── */}
         {mode === "new" && (

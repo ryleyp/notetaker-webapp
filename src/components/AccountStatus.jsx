@@ -36,6 +36,9 @@ export default function AccountStatus({ settings, onSettingsClick }) {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const [vaultScan, setVaultScan] = useState(null); // { results, total } | null
+  const [vaultScanOpen, setVaultScanOpen] = useState(false);
+
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthError, setSynthError] = useState(null);
   const [output, setOutput] = useState("");
@@ -54,6 +57,8 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setOutput("");
     setSaved(false);
     setShowConfirm(false);
+    setVaultScan(null);
+    setVaultScanOpen(false);
 
     try {
       const { aliases, archiveFolder } = detectAccount(selectedFolder, settings.accounts);
@@ -64,11 +69,31 @@ export default function AccountStatus({ settings, onSettingsClick }) {
         params.set("accountFolder", archiveFolder);
       }
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
-      const res = await fetch(`/api/notes?${params}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load notes");
-      setLoadedNotes(data.notes);
-      setLoadCounts(data.counts);
+
+      // Fire notes load and vault-wide scan in parallel
+      const scanParams = new URLSearchParams({ vaultPath: settings.vaultPath });
+      if (settings.transcriptsPath) scanParams.set("transcriptsPath", settings.transcriptsPath);
+      if (settings.accounts?.length) scanParams.set("accounts", JSON.stringify(
+        // Only scan for the detected account, not all accounts
+        [{ name: archiveFolder, archiveFolder, aliases: aliases || [] }]
+      ));
+
+      const [notesRes, scanRes] = await Promise.all([
+        fetch(`/api/notes?${params}`),
+        aliases?.length ? fetch(`/api/scan-vault?${scanParams}`) : Promise.resolve(null),
+      ]);
+
+      const notesData = await notesRes.json();
+      if (!notesRes.ok) throw new Error(notesData.error || "Failed to load notes");
+      setLoadedNotes(notesData.notes);
+      setLoadCounts(notesData.counts);
+
+      if (scanRes) {
+        const scanData = await scanRes.json();
+        if (scanRes.ok && scanData.results?.[0]?.files?.length) {
+          setVaultScan({ files: scanData.results[0].files, total: scanData.total });
+        }
+      }
     } catch (e) {
       setLoadError(e.message);
     } finally {
@@ -142,6 +167,8 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setSynthError(null);
     setLoadError(null);
     setShowConfirm(false);
+    setVaultScan(null);
+    setVaultScanOpen(false);
   }
 
   const folderLabel = selectedFolder || "(Vault root)";
@@ -152,7 +179,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
       <FolderSelector
         vaultPath={settings.vaultPath}
         selectedFolder={selectedFolder}
-        onSelect={(f) => { setSelectedFolder(f); setLoadedNotes(null); setOutput(""); setShowConfirm(false); }}
+        onSelect={(f) => { setSelectedFolder(f); setLoadedNotes(null); setOutput(""); setShowConfirm(false); setVaultScan(null); setVaultScanOpen(false); }}
         onSettingsClick={onSettingsClick}
       />
 
@@ -195,6 +222,31 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {vaultScan && (
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => setVaultScanOpen((v) => !v)}
+                        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        <svg className={`w-3.5 h-3.5 transition-transform ${vaultScanOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        🗃 {vaultScan.files.length} file{vaultScan.files.length !== 1 ? "s" : ""} mention this account across all time
+                      </button>
+                      {vaultScanOpen && (
+                        <ul className="mt-1.5 text-xs text-gray-500 space-y-0.5 max-h-40 overflow-y-auto pl-5">
+                          {vaultScan.files.map((f, i) => (
+                            <li key={i} className="flex gap-2">
+                              <span className="font-mono text-gray-400 flex-shrink-0">{f.date || "—"}</span>
+                              <span className="truncate">{f.title}</span>
+                              <span className="text-gray-400 flex-shrink-0 italic">{f.location}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </div>
