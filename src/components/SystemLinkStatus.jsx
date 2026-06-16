@@ -69,13 +69,9 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
     setShowConfirm(false);
 
     try {
-      const { aliases, archiveFolder } = detectAccount(selectedFolder, settings.accounts);
+      const { aliases } = detectAccount(selectedFolder, settings.accounts);
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
-      if (settings.transcriptsPath && archiveFolder) {
-        params.set("transcriptsPath", settings.transcriptsPath);
-        params.set("accountFolder", archiveFolder);
-      }
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
 
       const res = await fetch(`/api/notes?${params}`);

@@ -62,13 +62,9 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     setVaultScanOpen(false);
 
     try {
-      const { aliases, archiveFolder } = detectAccount(selectedFolder, settings.accounts);
+      const { aliases } = detectAccount(selectedFolder, settings.accounts);
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
-      if (settings.transcriptsPath && archiveFolder) {
-        params.set("transcriptsPath", settings.transcriptsPath);
-        params.set("accountFolder", archiveFolder);
-      }
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
 
       // Fire notes load and vault-wide scan in parallel
