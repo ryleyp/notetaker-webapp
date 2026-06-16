@@ -55,6 +55,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
   const [saved, setSaved] = useState(false);
   const [savedPath, setSavedPath] = useState("");
   const [synthCost, setSynthCost] = useState(null);
+  const [trimmedCount, setTrimmedCount] = useState(0);
 
   async function handleLoadNotes() {
     if (!settings.vaultPath) return;
@@ -118,6 +119,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
       if (!res.ok) throw new Error(data.error || "Synthesis failed");
       setOutput(data.output);
       if (data.usage) setSynthCost(calcCost(data.usage, data.model));
+      if (data.droppedCount) setTrimmedCount(data.droppedCount);
     } catch (e) {
       setSynthError(e.message);
     } finally {
@@ -277,12 +279,17 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                   </p>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
                     <span className="text-gray-500">Est. input</span>
-                    <span className="font-mono text-gray-700">~{est.inputTokens.toLocaleString()} tokens</span>
+                    <span className={`font-mono ${est.inputTokens > 180_000 ? "text-red-600 font-semibold" : "text-gray-700"}`}>~{est.inputTokens.toLocaleString()} tokens</span>
                     <span className="text-gray-500">Est. output</span>
                     <span className="font-mono text-gray-700">~{est.outputTokens.toLocaleString()} tokens</span>
                     <span className="text-gray-500">Est. cost</span>
                     <span className="font-mono text-gray-700">~${est.cost.toFixed(4)} ({est.label})</span>
                   </div>
+                  {est.inputTokens > 180_000 && (
+                    <p className="text-xs text-red-700 font-medium">
+                      Input is near or over the 200k token limit — oldest notes will be trimmed automatically to fit.
+                    </p>
+                  )}
                   <p className="text-xs text-amber-700">
                     Sanitized note content will be sent to Claude. Names in your glossary are replaced before sending.
                   </p>
@@ -313,6 +320,11 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
             <h2 className="text-lg font-semibold text-gray-900">SystemLink Status Ready</h2>
             <button onClick={handleReset} className="btn-secondary">Start Over</button>
           </div>
+          {trimmedCount > 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {trimmedCount} older note{trimmedCount !== 1 ? "s" : ""} were excluded to stay within the model's context limit. The summary covers your most recent notes.
+            </p>
+          )}
           <NotesPreview
             notes={output}
             onSave={handleSave}

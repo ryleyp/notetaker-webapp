@@ -289,6 +289,28 @@ Aggregate ALL unchecked action items (- [ ]) related to ${p} from across all sou
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
+// Conservative budget: 200k limit minus 8k output minus ~10k prompt template overhead.
+// Notes are assumed sorted newest-first; we keep the most recent ones that fit.
+const MAX_NOTE_CHARS = (200_000 - 8_192 - 10_000) * 4; // ~724k chars
+
+function fitNotes(notes) {
+  // Per-note cap: prevent a single enormous transcript from consuming everything.
+  const capped = notes.map((n) => ({
+    ...n,
+    content: n.content.length > 80_000 ? n.content.slice(0, 80_000) + "\n\n[truncated — note exceeds per-source limit]" : n.content,
+  }));
+
+  let total = 0;
+  const kept = [];
+  for (const n of capped) {
+    const size = (n.title?.length || 0) + n.content.length + 200;
+    if (total + size > MAX_NOTE_CHARS && kept.length > 0) break;
+    kept.push(n);
+    total += size;
+  }
+  return { kept, dropped: notes.length - kept.length };
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -304,6 +326,9 @@ export async function POST(request) {
       title: applyReplacements(applyCorrections(n.title || "", corrections), replacements),
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
+
+    // Trim to fit within context window, keeping most-recent notes first
+    const { kept, dropped } = fitNotes(sanitizedNotes);
 
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
@@ -324,15 +349,15 @@ export async function POST(request) {
         {
           role: "user",
           content: productFocus
-            ? buildProductPrompt(sanitizedNotes, today || new Date().toISOString().split("T")[0], productFocus)
-            : buildSynthesisPrompt(sanitizedNotes, today || new Date().toISOString().split("T")[0]),
+            ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus)
+            : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0]),
         },
       ],
     });
 
     const raw = message.content[0]?.text || "";
     const output = replacements.length ? reverseReplacements(raw, replacements) : raw;
-    return NextResponse.json({ output, noteCount: notes.length, usage: message.usage, model: model || "claude-sonnet-4-6" });
+    return NextResponse.json({ output, noteCount: kept.length, droppedCount: dropped, usage: message.usage, model: model || "claude-sonnet-4-6" });
   } catch (error) {
     console.error("Synthesis error:", error);
     return NextResponse.json(
