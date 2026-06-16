@@ -328,6 +328,20 @@ Aggregate ALL unchecked action items (- [ ]) related to ${p} from across all sou
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
+// Max output tokens per model. Sonnet 4.6 supports 16k; Haiku 4.5 caps at 8k.
+const MODEL_MAX_OUTPUT = {
+  "claude-opus-4-8": 32_000,
+  "claude-opus-4-7": 32_000,
+  "claude-opus-4-6": 32_000,
+  "claude-opus-4-5": 32_000,
+  "claude-sonnet-4-6": 16_000,
+  "claude-haiku-4-5": 8_192,
+};
+
+function maxOutputTokens(model) {
+  return MODEL_MAX_OUTPUT[model] || 8_192;
+}
+
 // Context window per model (input + output tokens). Sonnet 4.6 and the Opus
 // family support 1M tokens; Haiku 4.5 supports 200K. Unknown models fall back
 // to the conservative 200K so we never over-fill the prompt.
@@ -344,10 +358,10 @@ function contextTokens(model) {
   return MODEL_CONTEXT[model] || 200_000;
 }
 
-// Char budget for note content: context minus 8k output minus ~12k template
+// Char budget for note content: context minus max output minus ~12k template
 // overhead, in tokens, times ~4 chars/token, with a 5% safety margin.
 function budgetChars(model) {
-  const usableTokens = Math.floor((contextTokens(model) - 8_192 - 12_000) * 0.95);
+  const usableTokens = Math.floor((contextTokens(model) - maxOutputTokens(model) - 12_000) * 0.95);
   return usableTokens * 4;
 }
 
@@ -404,7 +418,7 @@ export async function POST(request) {
         try {
           const messageStream = client.messages.stream({
             model: model || "claude-sonnet-4-6",
-            max_tokens: 8192,
+            max_tokens: maxOutputTokens(model || "claude-sonnet-4-6"),
             system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
             messages: [{
               role: "user",
