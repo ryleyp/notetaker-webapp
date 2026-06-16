@@ -8,6 +8,7 @@ import TranscriptInput from "@/components/TranscriptInput";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
+import SystemLinkStatus from "@/components/SystemLinkStatus";
 import SanitizeReview from "@/components/SanitizeReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
@@ -437,6 +438,14 @@ export default function Home() {
         {/* ── Account Status mode ── */}
         {mode === "status" && (
           <AccountStatus
+            settings={settings}
+            onSettingsClick={() => setShowSettings(true)}
+          />
+        )}
+
+        {/* ── SystemLink Status mode ── */}
+        {mode === "sl-status" && (
+          <SystemLinkStatus
             settings={settings}
             onSettingsClick={() => setShowSettings(true)}
           />

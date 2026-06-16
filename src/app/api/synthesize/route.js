@@ -150,10 +150,149 @@ For each pillar: assign a **G/Y/R** rating, explain it in 1–2 sentences, then 
 Highest-priority next steps for the CS team in the coming weeks, in priority order. Scoped to NI Software activities.`;
 }
 
+function buildProductPrompt(notes, today, product) {
+  const threeMonthsAgo = new Date(today);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+
+  const noteBlocks = notes
+    .map((n, i) => {
+      const tag = n.source === "transcript" ? " [Transcript]" : n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
+      return `### Source ${i + 1}: ${n.title} (${n.date})${tag}\n\n${n.content}`;
+    })
+    .join("\n\n---\n\n");
+
+  const p = product.name;
+  const aliases = product.aliases?.join(", ") || p;
+
+  return `You are a NI Software Customer Success Manager reviewing ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}). Produce a focused **${p} Account Status** covering only content relevant to ${p} (also referred to as: ${aliases}).
+
+Scope rules:
+- Focus exclusively on ${p} — licensing, adoption, deployment, support, training, and expansion
+- Mention integrations with other NI tools only when directly tied to ${p}
+- Omit topics unrelated to ${p}
+
+---
+SOURCES:
+
+${noteBlocks}
+
+---
+
+Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.
+
+# ${p} Account Status — ${rangeLabel}
+
+*Synthesized from ${notes.length} sources*
+
+---
+
+## Recent Highlights
+
+Key decisions, outcomes, and updates related to ${p} this quarter. Include names, dates, product tiers (e.g. Base, Pro, SLS, SLE), and specifics.
+
+---
+
+## Open Action Items
+
+Aggregate ALL unchecked action items (- [ ]) related to ${p} from across all sources.
+
+- [ ] [Action item] — **Owner:** [Name] | **From:** [Date]
+
+---
+
+## ${p} Pillars
+
+### Proficiency & Self Service — [G/Y/R]
+
+*Are users building skill with ${p}? Is the account moving toward self-service?*
+
+- **Proficiency Plans** — Training status for new and experienced ${p} users
+- **L&D Integration** — Is ${p} content embedded in the account's learning approach?
+- **Onboarding** — Is ${p} part of new-hire or team onboarding?
+
+[Details from sources, or "Nothing noted this quarter."]
+
+---
+
+### Adoption — [G/Y/R]
+
+*What is the current ${p} footprint? Who is using it and how actively?*
+
+- **Active Tiers / SKUs** — Which ${p} products/tiers are deployed and in use?
+- **Evaluations & Pilots** — Any active ${p} evaluations? Are we providing hypercare?
+- **Deployment & Access** — Is ${p} deployed broadly? Any access or config blockers?
+- **Support & Case Trends** — Any recurring ${p} support issues or open cases?
+
+[Details from sources, or "Nothing noted this quarter."]
+
+---
+
+### Sponsors & End Users — [G/Y/R]
+
+*Who owns and champions ${p} at this account? Who are the power users?*
+
+- **${p} Sponsor(s)** — Who is the internal champion? How engaged are they?
+- **End-User Insight** — Are we capturing feedback from ${p} end users?
+- **Engagement Cadence** — How frequently are we meeting with ${p} stakeholders?
+
+[Details from sources, or "Nothing noted this quarter."]
+
+---
+
+### Expansion — [G/Y/R]
+
+*What ${p} tiers, modules, or use cases are untapped at this account?*
+
+- **Whitespace** — Which ${p} tiers or add-ons are they NOT using? Why?
+- **Expansion Opportunities** — Any discussed or identified growth areas?
+- **Success Collateral** — Have we shared ${p} success stories or ROI content?
+
+[Details from sources, or "Nothing noted this quarter."]
+
+---
+
+### Renewal Readiness — [G/Y/R]
+
+*What is the ${p} renewal risk or opportunity heading into the next EA/VLA?*
+
+- **Risk Factors** — Any dissatisfaction, low usage, or competitive threats related to ${p}?
+- **SSM Talking Points** — What renewal narrative supports ${p} value?
+- **Sponsor Leverage** — Are we using relationships to protect ${p} in renewal?
+
+[Details from sources, or "Nothing noted this quarter."]
+
+---
+
+### Overall ${p} Health Score — [G/Y/R]
+
+**Health Summary:** [2–3 sentences on the account's ${p} posture based on the five pillars above]
+
+**Risks & Escalation Needs:**
+- [bullet list]
+
+**Renewal Status:** [Low / Medium / High / No Risk] — [1–2 sentence rationale]
+
+**Expansion Pipeline:**
+- [bullet list of ${p}-specific expansion opportunities]
+
+---
+
+## Key Themes & Trends
+
+3–5 bullets on recurring ${p}-related patterns or risks across sources this quarter.
+
+---
+
+## Recommended Next Steps
+
+Priority actions for the CS team related to ${p} in the coming weeks.`;
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [] } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus } = body;
 
     if (!notes || notes.length === 0) {
       return NextResponse.json({ error: "No notes provided" }, { status: 400 });
@@ -184,7 +323,9 @@ export async function POST(request) {
       messages: [
         {
           role: "user",
-          content: buildSynthesisPrompt(sanitizedNotes, today || new Date().toISOString().split("T")[0]),
+          content: productFocus
+            ? buildProductPrompt(sanitizedNotes, today || new Date().toISOString().split("T")[0], productFocus)
+            : buildSynthesisPrompt(sanitizedNotes, today || new Date().toISOString().split("T")[0]),
         },
       ],
     });

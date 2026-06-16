@@ -1,0 +1,328 @@
+"use client";
+
+import { useState } from "react";
+import FolderSelector from "@/components/FolderSelector";
+import NotesPreview from "@/components/NotesPreview";
+import { calcCost } from "@/lib/pricing";
+import { detectAccount } from "@/lib/accounts";
+import { textHasAlias } from "@/lib/accounts";
+
+const TODAY = new Date().toISOString().split("T")[0];
+
+const SL_PRODUCT = {
+  name: "SystemLink",
+  aliases: ["systemlink", "sls", "sle", "system link"],
+};
+
+const SYNTHESIS_PRICING = {
+  "claude-haiku-4-5": { input: 1.0, output: 5.0, label: "Haiku" },
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0, label: "Sonnet" },
+};
+
+function threeMonthsAgoLabel() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 3);
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function noteHasSL(note) {
+  return SL_PRODUCT.aliases.some((a) => textHasAlias(note.content + " " + note.title, a));
+}
+
+function estimateUsage(notes, model) {
+  const chars = notes.reduce((s, n) => s + (n.content?.length || 0) + (n.title?.length || 0), 0);
+  const inputTokens = Math.ceil(chars / 4) + 2500;
+  const outputTokens = 2500;
+  const p = SYNTHESIS_PRICING[model] || SYNTHESIS_PRICING["claude-sonnet-4-6"];
+  const cost = (inputTokens / 1e6) * p.input + (outputTokens / 1e6) * p.output;
+  return { inputTokens, outputTokens, cost, label: p.label };
+}
+
+export default function SystemLinkStatus({ settings, onSettingsClick }) {
+  const [selectedFolder, setSelectedFolder] = useState("");
+  const [allNotes, setAllNotes] = useState(null);      // full set from API
+  const [filteredNotes, setFilteredNotes] = useState(null); // SL-only
+  const [loadCounts, setLoadCounts] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [synthError, setSynthError] = useState(null);
+  const [output, setOutput] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [savedPath, setSavedPath] = useState("");
+  const [synthCost, setSynthCost] = useState(null);
+
+  async function handleLoadNotes() {
+    if (!settings.vaultPath) return;
+    setLoading(true);
+    setLoadError(null);
+    setAllNotes(null);
+    setFilteredNotes(null);
+    setLoadCounts(null);
+    setOutput("");
+    setSaved(false);
+    setShowConfirm(false);
+
+    try {
+      const { aliases, archiveFolder } = detectAccount(selectedFolder, settings.accounts);
+      const params = new URLSearchParams({ vaultPath: settings.vaultPath });
+      if (selectedFolder) params.set("folderPath", selectedFolder);
+      if (settings.transcriptsPath && archiveFolder) {
+        params.set("transcriptsPath", settings.transcriptsPath);
+        params.set("accountFolder", archiveFolder);
+      }
+      if (aliases?.length) params.set("accountAliases", aliases.join(","));
+
+      const res = await fetch(`/api/notes?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load notes");
+
+      const sl = data.notes.filter(noteHasSL);
+      setAllNotes(data.notes);
+      setFilteredNotes(sl);
+      setLoadCounts(data.counts);
+    } catch (e) {
+      setLoadError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSynthesize() {
+    if (!filteredNotes?.length) return;
+    setSynthesizing(true);
+    setSynthError(null);
+    setOutput("");
+    setSaved(false);
+    setShowConfirm(false);
+
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: filteredNotes,
+          apiKey: settings.apiKey || undefined,
+          model: settings.model || undefined,
+          today: TODAY,
+          replacements: settings.replacements || [],
+          corrections: settings.corrections || [],
+          productFocus: SL_PRODUCT,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Synthesis failed");
+      setOutput(data.output);
+      if (data.usage) setSynthCost(calcCost(data.usage, data.model));
+    } catch (e) {
+      setSynthError(e.message);
+    } finally {
+      setSynthesizing(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!output || !settings.vaultPath) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: output,
+          vaultPath: settings.vaultPath,
+          folderPath: selectedFolder,
+          meetingTitle: `SystemLink Status ${TODAY}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      setSaved(true);
+      setSavedPath(data.savedPath);
+    } catch (e) {
+      alert(`Failed to save: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleReset() {
+    setAllNotes(null);
+    setFilteredNotes(null);
+    setLoadCounts(null);
+    setOutput("");
+    setSaved(false);
+    setSavedPath("");
+    setSynthError(null);
+    setLoadError(null);
+    setShowConfirm(false);
+  }
+
+  const folderLabel = selectedFolder || "(Vault root)";
+  const model = settings.model || "claude-sonnet-4-6";
+  const droppedCount = allNotes && filteredNotes ? allNotes.length - filteredNotes.length : 0;
+
+  return (
+    <div className="space-y-4">
+      <FolderSelector
+        vaultPath={settings.vaultPath}
+        selectedFolder={selectedFolder}
+        onSelect={(f) => { setSelectedFolder(f); setAllNotes(null); setFilteredNotes(null); setOutput(""); setShowConfirm(false); }}
+        onSettingsClick={onSettingsClick}
+      />
+
+      {settings.vaultPath && !output && (
+        <div className="card p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">SystemLink — Quarter Range</h3>
+              <p className="text-sm text-gray-500">
+                Scanning <span className="font-medium text-gray-700">{folderLabel}</span> for notes dated{" "}
+                <span className="font-medium text-gray-700">{threeMonthsAgoLabel()}</span> or later,
+                then filtering to notes mentioning{" "}
+                <span className="font-medium text-gray-700">SystemLink, SLS, SLE</span>.
+              </p>
+
+              {filteredNotes !== null && (
+                <div className="mt-3 space-y-1">
+                  {filteredNotes.length === 0 ? (
+                    <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200 inline-block">
+                      No notes mentioning SystemLink found in the past 3 months.
+                      {droppedCount > 0 && ` (${droppedCount} account note${droppedCount !== 1 ? "s" : ""} found but none mention SL.)`}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-green-700">
+                        {filteredNotes.length} note{filteredNotes.length !== 1 ? "s" : ""} mention SystemLink
+                        {droppedCount > 0 && (
+                          <span className="font-normal text-gray-400"> · {droppedCount} other account note{droppedCount !== 1 ? "s" : ""} excluded</span>
+                        )}
+                      </p>
+                      {loadCounts && (
+                        <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
+                          {loadCounts.obsidian > 0 && <span>📝 {loadCounts.obsidian} Obsidian</span>}
+                          {loadCounts.transcripts > 0 && <span>🎙 {loadCounts.transcripts} Transcripts</span>}
+                          {loadCounts.crossVault > 0 && <span>🔍 {loadCounts.crossVault} Cross-folder</span>}
+                        </div>
+                      )}
+                      <ul className="text-xs text-gray-500 space-y-0.5 max-h-32 overflow-y-auto">
+                        {filteredNotes.map((n) => (
+                          <li key={n.filename} className="flex gap-2">
+                            <span className="font-mono text-gray-400 flex-shrink-0">{n.date}</span>
+                            <span className="truncate">{n.title}</span>
+                            {n.source !== "obsidian" && (
+                              <span className="text-gray-400 flex-shrink-0 italic">{n.sourceLabel}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {loadError && <p className="mt-2 text-sm text-red-600">{loadError}</p>}
+            </div>
+
+            <button
+              onClick={handleLoadNotes}
+              disabled={loading || !settings.vaultPath}
+              className="btn-secondary whitespace-nowrap"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Scanning...
+                </>
+              ) : filteredNotes !== null ? "Re-scan" : "Scan Folder"}
+            </button>
+          </div>
+
+          {filteredNotes?.length > 0 && !showConfirm && (
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              {synthError && (
+                <p className="mb-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-200">
+                  {synthError}
+                </p>
+              )}
+              <button
+                onClick={() => setShowConfirm(true)}
+                disabled={synthesizing}
+                className="btn-primary w-full py-3 text-base"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Generate SystemLink Status
+              </button>
+            </div>
+          )}
+
+          {filteredNotes?.length > 0 && showConfirm && (() => {
+            const est = estimateUsage(filteredNotes, model);
+            return (
+              <div className="mt-5 pt-5 border-t border-gray-100">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">Pre-flight check</h4>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3 text-sm">
+                  <p className="text-xs text-gray-600">
+                    Sending <strong>{filteredNotes.length}</strong> SystemLink-related notes to Claude.
+                    {droppedCount > 0 && ` ${droppedCount} non-SL notes excluded.`}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                    <span className="text-gray-500">Est. input</span>
+                    <span className="font-mono text-gray-700">~{est.inputTokens.toLocaleString()} tokens</span>
+                    <span className="text-gray-500">Est. output</span>
+                    <span className="font-mono text-gray-700">~{est.outputTokens.toLocaleString()} tokens</span>
+                    <span className="text-gray-500">Est. cost</span>
+                    <span className="font-mono text-gray-700">~${est.cost.toFixed(4)} ({est.label})</span>
+                  </div>
+                  <p className="text-xs text-amber-700">
+                    Sanitized note content will be sent to Claude. Names in your glossary are replaced before sending.
+                  </p>
+                </div>
+                <div className="flex gap-3 mt-3">
+                  <button onClick={() => setShowConfirm(false)} className="btn-secondary flex-1">Cancel</button>
+                  <button onClick={handleSynthesize} disabled={synthesizing} className="btn-primary flex-1 py-3">
+                    {synthesizing ? (
+                      <>
+                        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Synthesizing…
+                      </>
+                    ) : "Confirm — Send to Claude"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {output && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">SystemLink Status Ready</h2>
+            <button onClick={handleReset} className="btn-secondary">Start Over</button>
+          </div>
+          <NotesPreview
+            notes={output}
+            onSave={handleSave}
+            saving={saving}
+            saved={saved}
+            savedPath={savedPath}
+            cost={synthCost}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
