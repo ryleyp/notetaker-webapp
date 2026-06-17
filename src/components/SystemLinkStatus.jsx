@@ -11,7 +11,7 @@ const TODAY = new Date().toISOString().split("T")[0];
 
 const SL_PRODUCT = {
   name: "SystemLink",
-  aliases: ["systemlink", "sls", "sle", "system link"],
+  aliases: ["systemlink", "sls", "sle", "system link", "sl", "sl pro"],
 };
 
 const SYNTHESIS_PRICING = {
