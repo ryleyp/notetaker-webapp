@@ -98,7 +98,12 @@ export async function GET(request) {
   }
 
   const all = [...primaryNotes, ...crossVaultNotes];
-  all.sort((a, b) => b.date.localeCompare(a.date));
+  all.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    if (dateCmp !== 0) return dateCmp;
+    // Same day: sort by filename ascending so meeting 1 < 2 < 3 (oldest → newest)
+    return a.filename.localeCompare(b.filename);
+  });
 
   return NextResponse.json({
     notes: all,
