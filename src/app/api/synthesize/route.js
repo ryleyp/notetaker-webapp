@@ -20,9 +20,9 @@ function buildSynthesisPrompt(notes, today, accountName, allAccounts) {
   const acct = accountName && accountName !== "Internal" ? accountName : null;
 
   const noteBlocks = notes
-    .map((n, i) => {
+    .map((n) => {
       const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
-      return `### Source ${i + 1}: ${n.title} (${n.date})${tag}\n\n${n.content}`;
+      return `### ${n.date} — ${n.title}${tag}\n\n${n.content}`;
     })
     .join("\n\n---\n\n");
 
@@ -58,6 +58,8 @@ ${noteBlocks}
 ---
 
 Generate the Account Status document using EXACTLY this structure. Be specific — reference actual names, dates, products, and details from the sources. Do not be vague.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
+
+**Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
 **Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
 
@@ -209,9 +211,9 @@ function buildProductPrompt(notes, today, product, accountName, allAccounts) {
   const acct = accountName && accountName !== "Internal" ? accountName : null;
 
   const noteBlocks = notes
-    .map((n, i) => {
+    .map((n) => {
       const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
-      return `### Source ${i + 1}: ${n.title} (${n.date})${tag}\n\n${n.content}`;
+      return `### ${n.date} — ${n.title}${tag}\n\n${n.content}`;
     })
     .join("\n\n---\n\n");
 
@@ -246,6 +248,8 @@ ${noteBlocks}
 ---
 
 Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
+
+**Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
 **Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
 
