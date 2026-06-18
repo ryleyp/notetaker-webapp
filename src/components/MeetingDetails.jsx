@@ -1,6 +1,8 @@
 "use client";
 
-export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
+export default function MeetingDetails({ meetingTitle, setMeetingTitle, meetingSequence, setMeetingSequence }) {
+  const effectiveTitle = meetingTitle + (meetingSequence ? ` ${meetingSequence}` : "");
+
   return (
     <div className="card p-6">
       <div className="flex items-center gap-3 mb-5">
@@ -11,23 +13,45 @@ export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
         </div>
       </div>
 
-      <div>
-        <label className="label">Meeting Title</label>
-        <input
-          type="text"
-          className="input"
-          placeholder="e.g. 2026-06-05 - Lockheed Kickoff"
-          value={meetingTitle}
-          onChange={(e) => setMeetingTitle(e.target.value)}
-          autoFocus
-        />
+      <div className="space-y-3">
+        <div>
+          <label className="label">Meeting Title</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="e.g. 2026-06-05 - Lockheed Kickoff"
+            value={meetingTitle}
+            onChange={(e) => setMeetingTitle(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div>
+          <label className="label">Meeting # today <span className="text-gray-400 font-normal">(optional — if multiple meetings on the same day)</span></label>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setMeetingSequence(meetingSequence === String(n) ? "" : String(n))}
+                className={`w-9 h-9 rounded-lg border text-sm font-medium transition-colors ${
+                  meetingSequence === String(n)
+                    ? "bg-obsidian-600 border-obsidian-600 text-white"
+                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {meetingTitle && (
         <p className="mt-3 text-xs text-gray-400">
           File will be saved as{" "}
           <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
-            {meetingTitle}.md
+            {effectiveTitle}.md
           </span>
         </p>
       )}
