@@ -463,6 +463,36 @@ function fitNotes(notes, model) {
   return { kept, dropped: notes.length - kept.length };
 }
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function lineContainsKeyword(line, keywords) {
+  return keywords.some((kw) => {
+    const esc = escapeRegex(kw.trim());
+    const left = /^\w/.test(kw) ? "\\b" : "";
+    const right = /\w$/.test(kw) ? "\\b" : "";
+    return new RegExp(`${left}${esc}${right}`, "i").test(line);
+  });
+}
+
+// Physically remove lines containing keywords that belong to other accounts
+// so Claude never sees them — prompt instructions alone aren't reliable enough.
+function scrubForbiddenKeywords(notes, accountName, allAccounts) {
+  const forbidden = (allAccounts || [])
+    .filter((a) => a.name !== accountName && a.name !== "Internal")
+    .flatMap((a) => a.keywords || [])
+    .filter(Boolean);
+  if (!forbidden.length) return notes;
+  return notes.map((n) => ({
+    ...n,
+    content: n.content
+      .split("\n")
+      .filter((line) => !lineContainsKeyword(line, forbidden))
+      .join("\n"),
+  }));
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -478,7 +508,8 @@ export async function POST(request) {
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
 
-    const { kept, dropped } = fitNotes(sanitizedNotes, model || "claude-sonnet-4-6");
+    const scrubbedNotes = scrubForbiddenKeywords(sanitizedNotes, accountName, allAccounts);
+    const { kept, dropped } = fitNotes(scrubbedNotes, model || "claude-sonnet-4-6");
 
     // Reverse to chronological order (oldest → newest) for the prompt.
     // fitNotes works newest-first to drop oldest when over budget; once
