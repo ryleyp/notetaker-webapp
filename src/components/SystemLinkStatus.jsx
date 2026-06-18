@@ -6,6 +6,7 @@ import NotesPreview from "@/components/NotesPreview";
 import { calcCost } from "@/lib/pricing";
 import { detectAccount, textHasAlias } from "@/lib/accounts";
 import { reverseReplacements } from "@/lib/sanitize";
+import { buildScrubReport } from "@/lib/scrub";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -76,6 +77,9 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
   const [savedPath, setSavedPath] = useState("");
   const [synthCost, setSynthCost] = useState(null);
   const [trimmedCount, setTrimmedCount] = useState(0);
+  const [scrubReport, setScrubReport] = useState([]);
+  const [restoredIds, setRestoredIds] = useState(new Set());
+  const [scrubOpen, setScrubOpen] = useState(false);
 
   async function handleLoadNotes() {
     if (!settings.vaultPath) return;
@@ -87,9 +91,12 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
     setOutput("");
     setSaved(false);
     setShowConfirm(false);
+    setScrubReport([]);
+    setRestoredIds(new Set());
+    setScrubOpen(false);
 
     try {
-      const { aliases } = detectAccount(selectedFolder, settings.accounts);
+      const { aliases, name: accountName } = detectAccount(selectedFolder, settings.accounts);
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
@@ -102,6 +109,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
       setAllNotes(data.notes);
       setFilteredNotes(sl);
       setLoadCounts(data.counts);
+      setScrubReport(buildScrubReport(sl, accountName, settings.accounts || []));
     } catch (e) {
       setLoadError(e.message);
     } finally {
@@ -131,6 +139,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
           productFocus: SL_PRODUCT,
           accountName: detectAccount(selectedFolder, settings.accounts).name,
           allAccounts: settings.accounts || [],
+          restoredIds: [...restoredIds],
         }),
       });
 
@@ -208,6 +217,9 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
     setSynthError(null);
     setLoadError(null);
     setShowConfirm(false);
+    setScrubReport([]);
+    setRestoredIds(new Set());
+    setScrubOpen(false);
   }
 
   const [model, setModel] = useState(settings.model || "claude-haiku-4-5");
@@ -385,6 +397,53 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                     Sanitized note content will be sent to Claude. Names in your glossary are replaced before sending.
                   </p>
                 </div>
+                {scrubReport.length > 0 && (
+                  <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 overflow-hidden">
+                    <button
+                      onClick={() => setScrubOpen((v) => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs text-orange-800 hover:bg-orange-100 transition-colors"
+                    >
+                      <span>
+                        {restoredIds.size > 0
+                          ? `${scrubReport.length - restoredIds.size} of ${scrubReport.length} flagged line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed`
+                          : `${scrubReport.length} line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed (keyword filter)`}
+                      </span>
+                      <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${scrubOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    {scrubOpen && (
+                      <ul className="divide-y divide-orange-100 max-h-52 overflow-y-auto">
+                        {scrubReport.map((item) => (
+                          <li key={item.id} className="flex gap-2 items-start px-3 py-1.5">
+                            <input
+                              type="checkbox"
+                              id={item.id}
+                              checked={restoredIds.has(item.id)}
+                              onChange={(e) => {
+                                const next = new Set(restoredIds);
+                                if (e.target.checked) next.add(item.id);
+                                else next.delete(item.id);
+                                setRestoredIds(next);
+                              }}
+                              className="mt-0.5 flex-shrink-0 accent-orange-600"
+                            />
+                            <label htmlFor={item.id} className="text-xs cursor-pointer leading-relaxed">
+                              <span className="font-mono text-orange-500 mr-1">{item.noteDate}</span>
+                              <span className="text-orange-700 mr-1 font-medium">{item.noteTitle} —</span>
+                              <span className="text-gray-700">{item.line.trim()}</span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {scrubOpen && (
+                      <p className="px-3 py-1.5 text-xs text-orange-600 border-t border-orange-100">
+                        Check a line to restore it — it will be included when sent to Claude.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-3 mt-3">
                   <button onClick={() => setShowConfirm(false)} className="btn-secondary flex-1">Cancel</button>
                   <button onClick={handleSynthesize} disabled={synthesizing} className="btn-primary flex-1 py-3">

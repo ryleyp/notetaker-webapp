@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { applyCorrections, applyReplacements } from "@/lib/sanitize";
+import { scrubWithExceptions } from "@/lib/scrub";
 
 function buildExclusionList(accountName, allAccounts) {
   if (!allAccounts?.length) return "";
@@ -463,40 +464,10 @@ function fitNotes(notes, model) {
   return { kept, dropped: notes.length - kept.length };
 }
 
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function lineContainsKeyword(line, keywords) {
-  return keywords.some((kw) => {
-    const esc = escapeRegex(kw.trim());
-    const left = /^\w/.test(kw) ? "\\b" : "";
-    const right = /\w$/.test(kw) ? "\\b" : "";
-    return new RegExp(`${left}${esc}${right}`, "i").test(line);
-  });
-}
-
-// Physically remove lines containing keywords that belong to other accounts
-// so Claude never sees them — prompt instructions alone aren't reliable enough.
-function scrubForbiddenKeywords(notes, accountName, allAccounts) {
-  const forbidden = (allAccounts || [])
-    .filter((a) => a.name !== accountName && a.name !== "Internal")
-    .flatMap((a) => a.keywords || [])
-    .filter(Boolean);
-  if (!forbidden.length) return notes;
-  return notes.map((n) => ({
-    ...n,
-    content: n.content
-      .split("\n")
-      .filter((line) => !lineContainsKeyword(line, forbidden))
-      .join("\n"),
-  }));
-}
-
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName, allAccounts = [] } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName, allAccounts = [], restoredIds = [] } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -508,7 +479,7 @@ export async function POST(request) {
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
 
-    const scrubbedNotes = scrubForbiddenKeywords(sanitizedNotes, accountName, allAccounts);
+    const scrubbedNotes = scrubWithExceptions(sanitizedNotes, accountName, allAccounts, restoredIds);
     const { kept, dropped } = fitNotes(scrubbedNotes, model || "claude-sonnet-4-6");
 
     // Reverse to chronological order (oldest → newest) for the prompt.
