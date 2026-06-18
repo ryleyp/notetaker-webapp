@@ -5,14 +5,23 @@ function buildExclusionList(accountName, allAccounts) {
   if (!allAccounts?.length) return "";
   const others = allAccounts.filter((a) => a.name !== accountName && a.name !== "Internal");
   if (!others.length) return "";
-  const lines = others.map((a) => {
+
+  const accountLines = others.map((a) => {
     const aliases = (a.aliases || []).join(", ");
-    const keywords = (a.keywords || []).join(", ");
-    let line = aliases ? `  - ${a.name} (also referred to as: ${aliases})` : `  - ${a.name}`;
-    if (keywords) line += ` — account-specific keywords, do not mention: ${keywords}`;
-    return line;
+    return aliases ? `  - ${a.name} (also referred to as: ${aliases})` : `  - ${a.name}`;
   });
-  return `\nOther customer accounts that exist in these notes — NEVER mention them by name, alias, or associated keywords:\n${lines.join("\n")}\n`;
+
+  const keywordLines = others
+    .filter((a) => a.keywords?.length)
+    .map((a) => `  - ${a.keywords.join(", ")} → belong to ${a.name}, do not include in this summary`);
+
+  let out = `\nOther customer accounts — NEVER mention them by name or alias:\n${accountLines.join("\n")}\n`;
+
+  if (keywordLines.length) {
+    out += `\nFORBIDDEN KEYWORDS — these terms are exclusively tied to other accounts. If you see them in a source, skip that content entirely. Do NOT write them anywhere in the output:\n${keywordLines.join("\n")}\n`;
+  }
+
+  return out;
 }
 
 function buildSynthesisPrompt(notes, today, accountName, allAccounts) {
