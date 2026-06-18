@@ -21,7 +21,6 @@ export default function Home() {
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
-  const [meetingSequence, setMeetingSequence] = useState("");
   const [transcript, setTranscript] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
   const [model, setModel] = useState("claude-haiku-4-5");
@@ -227,7 +226,6 @@ export default function Home() {
   // Step 3: sanitize + generate
   async function doGenerate(replacements) {
     setActiveReplacements(replacements);
-    const effectiveTitle = meetingTitle + (meetingSequence ? ` ${meetingSequence}` : "");
     const corrected = applyCorrections(transcript, settings.corrections || []);
     const sanitizedTranscript = replacements.length
       ? applyReplacements(corrected, replacements)
@@ -240,7 +238,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           transcript: sanitizedTranscript,
-          meetingTitle: effectiveTitle,
+          meetingTitle,
           apiKey: settings.apiKey || undefined,
           model,
         }),
@@ -283,7 +281,7 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             transcript: correctedTranscript,
-            meetingTitle: effectiveTitle,
+            meetingTitle,
             transcriptsPath: settings.transcriptsPath,
             folder: selectedFolder || undefined,
           }),
@@ -300,8 +298,7 @@ export default function Home() {
     if (!notes || !settings.vaultPath) return;
     setSaving(true);
     try {
-      const effectiveTitle = meetingTitle + (meetingSequence ? ` ${meetingSequence}` : "");
-      const folderPath = await resolveAutoFolder(effectiveTitle + " " + notes);
+      const folderPath = await resolveAutoFolder(meetingTitle + " " + notes);
       const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -309,7 +306,7 @@ export default function Home() {
           notes,
           vaultPath: settings.vaultPath,
           folderPath,
-          meetingTitle: effectiveTitle,
+          meetingTitle,
         }),
       });
       const data = await res.json();
@@ -347,8 +344,7 @@ export default function Home() {
 
     setSavingTranscript(true);
     try {
-      const baseTitle = meetingTitle || "Transcript";
-      const title = baseTitle + (meetingSequence ? ` ${meetingSequence}` : "");
+      const title = meetingTitle || "Transcript";
       const folderPath = await resolveAutoFolder(title + " " + corrected);
       const res = await fetch("/api/save", {
         method: "POST",
@@ -387,7 +383,6 @@ export default function Home() {
   function handleNewNote() {
     setTranscript("");
     setMeetingTitle("");
-    setMeetingSequence("");
     setNotes("");
     setSaved(false);
     setSavedPath("");
@@ -481,8 +476,6 @@ export default function Home() {
               <MeetingDetails
                 meetingTitle={meetingTitle}
                 setMeetingTitle={setMeetingTitle}
-                meetingSequence={meetingSequence}
-                setMeetingSequence={setMeetingSequence}
               />
 
               <TranscriptInput
