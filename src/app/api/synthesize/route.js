@@ -58,6 +58,8 @@ ${noteBlocks}
 
 Generate the Account Status document using EXACTLY this structure. Be specific — reference actual names, dates, products, and details from the sources. Do not be vague.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
 
+**Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
+
 # ${acct ? `${acct} ` : ""}Account Status — ${rangeLabel}
 
 *Synthesized from ${notes.length} sources*
@@ -170,6 +172,14 @@ For each pillar: assign a **G/Y/R** rating, explain it in 1–2 sentences, then 
 
 ---
 
+## Information Changes
+
+List any cases where a newer source contradicts, reverses, or materially updates something stated in an older source. If none exist, write "No contradictions or reversals noted this quarter."
+
+- **[Topic]** — Previously (as of [older date]): [old info]. Updated (as of [newer date]): [new info].
+
+---
+
 ## Recommended Next Steps
 
 Highest-priority next steps for the CS team in the coming weeks, in priority order. Scoped to NI Software activities.`;
@@ -219,6 +229,8 @@ ${noteBlocks}
 ---
 
 Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
+
+**Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
 
 # ${p} Account Status${acct ? ` — ${acct}` : ""} — ${rangeLabel}
 
@@ -320,6 +332,14 @@ Aggregate ALL unchecked action items (- [ ]) related to ${p} from across all sou
 ## Key Themes & Trends
 
 3–5 bullets on recurring ${p}-related patterns or risks across sources this quarter.
+
+---
+
+## Information Changes
+
+List any cases where a newer source contradicts, reverses, or materially updates something stated in an older source. If none exist, write "No contradictions or reversals noted this quarter."
+
+- **[Topic]** — Previously (as of [older date]): [old info]. Updated (as of [newer date]): [new info].
 
 ---
 
