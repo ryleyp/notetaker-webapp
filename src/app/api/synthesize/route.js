@@ -22,7 +22,7 @@ function buildSynthesisPrompt(notes, today, accountName, allAccounts) {
   const noteBlocks = notes
     .map((n) => {
       const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
-      return `### ${n.date} — ${n.title}${tag}\n\n${n.content}`;
+      return `### ${n.date} — ${n.title}${tag}${n._dayLabel || ""}\n\n${n.content}`;
     })
     .join("\n\n---\n\n");
 
@@ -58,6 +58,8 @@ ${noteBlocks}
 ---
 
 Generate the Account Status document using EXACTLY this structure. Be specific — reference actual names, dates, products, and details from the sources. Do not be vague.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
+
+**Source ordering:** Sources below are in chronological order — oldest first, newest last. Within a single day, meetings tagged *(earliest same-day meeting)* happened before those tagged *(latest same-day meeting)*. The last source to address any topic is the most recent and authoritative.
 
 **Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
@@ -213,7 +215,7 @@ function buildProductPrompt(notes, today, product, accountName, allAccounts) {
   const noteBlocks = notes
     .map((n) => {
       const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
-      return `### ${n.date} — ${n.title}${tag}\n\n${n.content}`;
+      return `### ${n.date} — ${n.title}${tag}${n._dayLabel || ""}\n\n${n.content}`;
     })
     .join("\n\n---\n\n");
 
@@ -248,6 +250,8 @@ ${noteBlocks}
 ---
 
 Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
+
+**Source ordering:** Sources below are in chronological order — oldest first, newest last. Within a single day, meetings tagged *(earliest same-day meeting)* happened before those tagged *(latest same-day meeting)*. The last source to address any topic is the most recent and authoritative.
 
 **Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
@@ -460,6 +464,26 @@ export async function POST(request) {
 
     const { kept, dropped } = fitNotes(sanitizedNotes, model || "claude-sonnet-4-6");
 
+    // Reverse to chronological order (oldest → newest) for the prompt.
+    // fitNotes works newest-first to drop oldest when over budget; once
+    // trimmed, chronological order helps Claude reason about what supersedes what.
+    const chronological = [...kept].reverse();
+
+    // Tag same-day notes with position labels so Claude knows which came first.
+    const dateCounts = {};
+    for (const n of chronological) dateCounts[n.date] = (dateCounts[n.date] || 0) + 1;
+    const dateIndex = {};
+    const taggedNotes = chronological.map((n) => {
+      if (dateCounts[n.date] > 1) {
+        dateIndex[n.date] = (dateIndex[n.date] || 0) + 1;
+        const pos = dateIndex[n.date];
+        const total = dateCounts[n.date];
+        const label = pos === 1 ? " *(earliest same-day meeting)*" : pos === total ? " *(latest same-day meeting)*" : ` *(same-day meeting ${pos} of ${total})*`;
+        return { ...n, _dayLabel: label };
+      }
+      return { ...n, _dayLabel: "" };
+    });
+
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
       return new Response(JSON.stringify({ error: "Anthropic API key is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -479,8 +503,8 @@ export async function POST(request) {
             messages: [{
               role: "user",
               content: productFocus
-                ? buildProductPrompt(kept, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
-                : buildSynthesisPrompt(kept, today || new Date().toISOString().split("T")[0], accountName, allAccounts),
+                ? buildProductPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
+                : buildSynthesisPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts),
             }],
           });
 
