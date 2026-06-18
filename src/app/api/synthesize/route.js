@@ -167,6 +167,21 @@ For each pillar: assign a **G/Y/R** rating, explain it in 1–2 sentences, then 
 
 ---
 
+## Digital Progress
+
+Summarize what is known about the account's software and OS environment from the sources. Include versions, lab or location names, and any upgrade or migration activity mentioned. If nothing is noted, write "No software/OS environment details noted this quarter."
+
+**Software Versions in Use:**
+- [Product/tool name] — [version or tier, lab/location if known]
+
+**Operating Systems:**
+- [OS name and version] — [lab/location or team if known]
+
+**Upgrade or Migration Activity:**
+- [Any mentioned upgrades, planned migrations, or version-change discussions]
+
+---
+
 ## Key Themes & Trends
 
 3–5 bullets identifying recurring topics, risks, or patterns across multiple sources this quarter.
@@ -328,6 +343,21 @@ Aggregate ALL unchecked action items (- [ ]) related to ${p} from across all sou
 
 **Expansion Pipeline:**
 - [bullet list of ${p}-specific expansion opportunities]
+
+---
+
+## Digital Progress
+
+Summarize what is known about the account's ${p} software and OS environment from the sources. Include versions, lab or location names, and any upgrade or migration activity mentioned. If nothing is noted, write "No software/OS environment details noted this quarter."
+
+**${p} Versions in Use:**
+- [Version or tier] — [lab/location or team if known]
+
+**Operating Systems:**
+- [OS name and version] — [lab/location or team if known]
+
+**Upgrade or Migration Activity:**
+- [Any mentioned upgrades, planned migrations, or version-change discussions related to ${p}]
 
 ---
 
