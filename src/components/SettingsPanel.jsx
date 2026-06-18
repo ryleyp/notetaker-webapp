@@ -16,6 +16,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       name: a.name || "",
       archiveFolder: a.archiveFolder || "",
       aliasesText: (a.aliases || []).join(", "),
+      keywordsText: (a.keywords || []).join(", "),
     })),
   });
   const [newFind, setNewFind] = useState("");
@@ -83,7 +84,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
   }
 
   function addAccount() {
-    setForm((f) => ({ ...f, accounts: [...f.accounts, { name: "", archiveFolder: "", aliasesText: "" }] }));
+    setForm((f) => ({ ...f, accounts: [...f.accounts, { name: "", archiveFolder: "", aliasesText: "", keywordsText: "" }] }));
   }
 
   function removeAccount(i) {
@@ -97,6 +98,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
         name: a.name.trim(),
         archiveFolder: a.archiveFolder.trim(),
         aliases: a.aliasesText.split(",").map((s) => s.trim()).filter(Boolean),
+        keywords: a.keywordsText.split(",").map((s) => s.trim()).filter(Boolean),
       }));
     onSave({
       vaultPath: form.vaultPath.trim(),
@@ -314,8 +316,9 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
           <label className="label">Accounts</label>
           <p className="text-xs text-gray-500 mb-3">
             Each account maps name aliases to a transcript archive subfolder. Aliases drive
-            cross-folder search and auto-filing of vault-root notes — add abbreviations and
-            program names (comma-separated) to catch more mentions.
+            cross-folder search and auto-filing of vault-root notes. Keywords are account-specific
+            terms (e.g. program names, product lines) that will be excluded from other accounts'
+            summaries.
           </p>
 
           <div className="space-y-3">
@@ -352,6 +355,13 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
                   placeholder="Aliases, comma-separated (e.g. northrop, ngc)"
                   value={a.aliasesText}
                   onChange={(e) => updateAccount(i, "aliasesText", e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Keywords to exclude from other accounts (e.g. F-35, skunk works)"
+                  value={a.keywordsText}
+                  onChange={(e) => updateAccount(i, "keywordsText", e.target.value)}
                 />
               </div>
             ))}

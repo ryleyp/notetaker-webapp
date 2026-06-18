@@ -7,9 +7,12 @@ function buildExclusionList(accountName, allAccounts) {
   if (!others.length) return "";
   const lines = others.map((a) => {
     const aliases = (a.aliases || []).join(", ");
-    return aliases ? `  - ${a.name} (also referred to as: ${aliases})` : `  - ${a.name}`;
+    const keywords = (a.keywords || []).join(", ");
+    let line = aliases ? `  - ${a.name} (also referred to as: ${aliases})` : `  - ${a.name}`;
+    if (keywords) line += ` — account-specific keywords, do not mention: ${keywords}`;
+    return line;
   });
-  return `\nOther customer accounts that exist in these notes — NEVER mention them by name or alias:\n${lines.join("\n")}\n`;
+  return `\nOther customer accounts that exist in these notes — NEVER mention them by name, alias, or associated keywords:\n${lines.join("\n")}\n`;
 }
 
 function buildSynthesisPrompt(notes, today, accountName, allAccounts) {
