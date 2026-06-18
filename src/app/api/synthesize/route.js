@@ -61,6 +61,8 @@ Generate the Account Status document using EXACTLY this structure. Be specific �
 
 **Source ordering:** Sources below are in chronological order — oldest first, newest last. Within a single day, meetings tagged *(earliest same-day meeting)* happened before those tagged *(latest same-day meeting)*. The last source to address any topic is the most recent and authoritative.
 
+**Output ordering:** Within every section, present information newest-first. Lead with the most recent developments, then older context below.
+
 **Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
 **Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
@@ -252,6 +254,8 @@ ${noteBlocks}
 Generate the ${p} Account Status using EXACTLY this structure. Be specific — reference actual names, dates, product tiers, and details from the sources.${acct ? ` Remember: ${acct} ONLY — never mention another account.` : ""}
 
 **Source ordering:** Sources below are in chronological order — oldest first, newest last. Within a single day, meetings tagged *(earliest same-day meeting)* happened before those tagged *(latest same-day meeting)*. The last source to address any topic is the most recent and authoritative.
+
+**Output ordering:** Within every section, present information newest-first. Lead with the most recent developments, then older context below.
 
 **Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
