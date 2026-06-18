@@ -46,6 +46,7 @@ ${accountScope}Scope rules:
 - Third-party software: mention briefly if relevant to NI context
 - Hardware: mention only when directly tied to NI software usage
 - Omit purely hardware or non-NI topics
+- **Demo sessions and user groups:** If a source is a demo session, NI user group, or similar event, do NOT include generic product details or feature overviews from it. Only include content from those sources if there was a specific customer discussion, question, reaction, or account-relevant context around a product — e.g. a customer asked about it, expressed interest, raised a concern, or it was discussed in relation to their environment.
 
 Sources include Obsidian meeting notes and notes from other folders that mention this account [folder name].
 
@@ -220,6 +221,7 @@ ${accountScope}Scope rules:
 - Focus exclusively on ${p}${acct ? ` at ${acct}` : ""} — licensing, adoption, deployment, support, training, and expansion
 - Mention integrations with other NI tools only when directly tied to ${p}
 - Omit topics unrelated to ${p}
+- **Demo sessions and user groups:** If a source is a demo session, NI user group, or similar event, do NOT include generic ${p} product details or feature overviews from it. Only include content from those sources if there was a specific customer discussion, question, reaction, or account-relevant context — e.g. a customer asked about ${p}, expressed interest, raised a concern, or it was discussed in relation to their environment.
 
 ---
 SOURCES:
