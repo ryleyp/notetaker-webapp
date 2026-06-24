@@ -423,6 +423,12 @@ function buildCSMActivityPrompt(notes, today, accountName, allAccounts) {
 
   return `You are a NI Software Customer Success Manager creating an EA Engagement Activity Report for **${acct}** based on ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}).
 ${exclusion ? `\n${exclusion}` : ""}
+CRITICAL ACCOUNT SCOPING RULES — these override everything else:
+- Report exclusively on **${acct}**. Do NOT include any activity that belongs to another customer account.
+- Some notes may mention other accounts or come from shared folders. Extract ONLY activities that involve ${acct}. Ignore everything else, even within the same note.
+- Never write a row about another account. If an activity does not involve ${acct}, skip it entirely.
+- Do not mention any other account name, alias, or keyword in any column.
+
 TASK: Identify all meaningful, reportable CSM activities from these sources and output an EA Engagement Activity Report as a Markdown table. Do NOT include routine emails, low-value check-ins, or any activity that wouldn't impress an executive reader. If two notes describe the same session, produce only one row — no duplicates.
 
 OUTPUT FORMAT — output ONLY this Markdown table, nothing else (no intro, no headings, no commentary):
