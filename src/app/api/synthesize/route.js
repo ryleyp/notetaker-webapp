@@ -439,17 +439,19 @@ Column rules:
 
 CLASSIFICATION PROCESS — for each activity, evaluate ALL 6 Type options before selecting. Do not stop at the first type that seems plausible:
 
+IMPORTANT DEFINITION — **EA Admin**: a person employed by the *customer* (e.g. Frontgrade, Lockheed Martin, Northrop Grumman, L3Harris) who manages EA logistics on their company's behalf. EA Admins are NOT NI employees. Any meeting with an EA Admin is a customer-facing activity — never Internal Alignment.
+
 1. **Entitlement Awareness & Promotion** — Is this about promoting EA entitlement awareness or usage? (emails, newsletters, training plans, shared portals)
-2. **Internal Alignment & Collaboration** — Was this NI-internal only with NO customer present? Did it produce a concrete decision or outcome? (If no clear outcome, skip it.)
-3. **Onboarding & Kick-Off** — Was this specifically onboarding a new EA admin or new end users to the EA scope and entitlements?
+2. **Internal Alignment & Collaboration** — Was this NI-internal only with NO customer present? Did it produce a concrete decision or outcome? (If no clear outcome, skip it.) Any session that includes an EA Admin or any other customer contact is NOT internal.
+3. **Onboarding & Kick-Off** — Was this specifically onboarding a new EA Admin (customer-side) or new end users to the EA scope and entitlements?
 4. **Strategic Relationship Management** — Was this a 1:1 or small-group customer-facing governance or relationship sync that doesn't qualify as a User Group or Onboarding?
 5. **User Groups** — Was this a group session with multiple attendees (demo, user group, or planning/coordination for one)?
 6. **Value Realization & Success Stories** — Was the primary purpose to capture or communicate customer ROI, outcomes, or a success story?
 
 Tiebreaker rules:
-- If NI-internal only → Internal Alignment & Collaboration (not Strategic)
+- If NI-internal only (zero customer contacts present) → Internal Alignment & Collaboration (not Strategic)
 - If group session with multiple attendees → User Groups (not Strategic)
-- If onboarding a new admin or new users → Onboarding & Kick-Off (not Strategic)
+- If onboarding a new EA Admin (customer-side) or new end users → Onboarding & Kick-Off (not Strategic)
 - If capturing/writing ROI or a success story → Value Realization (not Strategic)
 - Strategic Relationship Management is a catch-all for customer-facing relationship activities only after ruling out all more-specific types above
 
@@ -478,13 +480,13 @@ EA ENGAGEMENT TYPE TAXONOMY — use the EXACT text shown below for both Type and
   - Other — recurring internal team syncs (e.g. biweekly account team calls) when they produced a concrete outcome
 
 **Type: Onboarding & Kick-Off** — onboarding new admins or users:
-  - EA Admin Onboarding — onboarding EA admin contacts to EA scope, entitlements, and governance
+  - EA Admin Onboarding — onboarding a new customer-side EA Admin (person at Frontgrade, LM, NGC, L3Harris, etc. who manages EA logistics for their company) to EA scope, entitlements, and governance. This is always a customer-facing meeting.
     Example: "EA Admin onboarding session for two new L3Harris EA Admins who recently took over the role. Session covered the full scope of the EA (software entitlements, training credits, etc.), admin Q&A, and established understanding of internal processes."
   - EA End-User Kick-Off — kickoff session for end users
   - Other
 
 **Type: Strategic Relationship Management** — high-touch customer-facing relationship and governance activities:
-  - EA Admin Sync — recurring or ad-hoc sync with EA admin or key stakeholder contacts
+  - EA Admin Sync — recurring or ad-hoc sync with the customer-side EA Admin (the person at Frontgrade, LM, NGC, L3Harris, etc. who manages their EA) or other key customer stakeholders. These contacts are NOT NI employees.
     Example: "Frontgrade TestStand Pilot Check In and EA Renewal Alignment — Meeting with Marc Pevotaux to review pilot status and align on renewal timeline."
   - Escalation/Risk Management — active risk mitigation, escalations, or at-risk situations
     Example: "Active R&D escalation on behalf of Bret Ridgel (Northrop Grumman) related to a TKM505X IVI driver issue preventing LabVIEW control of the Tektronix MSO46B. Original FAE ticket stalled after R&D contacts left NI. CSM submitted an R&D Advocacy request to unblock."
