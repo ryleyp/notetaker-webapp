@@ -439,7 +439,7 @@ Column rules:
 
 CLASSIFICATION PROCESS — for each activity, evaluate ALL 6 Type options before selecting. Do not stop at the first type that seems plausible:
 
-IMPORTANT DEFINITION — **EA Admin**: a person employed by the *customer* (e.g. Frontgrade, Lockheed Martin, Northrop Grumman, L3Harris) who manages EA logistics on their company's behalf. EA Admins are NOT NI employees. Any meeting with an EA Admin is a customer-facing activity — never Internal Alignment.
+IMPORTANT DEFINITION — **EA Admin**: a customer-side IT administrator (employed by Frontgrade, Lockheed Martin, Northrop Grumman, L3Harris, etc.) who runs the EA or maintains NI licensing on their company's behalf. EA Admins are NOT NI employees. Any meeting with an EA Admin is a customer-facing activity — never Internal Alignment.
 
 1. **Entitlement Awareness & Promotion** — Is this about promoting EA entitlement awareness or usage? (emails, newsletters, training plans, shared portals)
 2. **Internal Alignment & Collaboration** — Was this NI-internal only with NO customer present? Did it produce a concrete decision or outcome? (If no clear outcome, skip it.) Any session that includes an EA Admin or any other customer contact is NOT internal.
@@ -460,9 +460,9 @@ For each activity, silently verify your choice by asking: "Is there a more speci
 EA ENGAGEMENT TYPE TAXONOMY — use the EXACT text shown below for both Type and Subtype (copy it character-for-character). Read descriptions and examples before picking.
 
 **Type: Entitlement Awareness & Promotion** — activities promoting awareness or use of EA entitlements:
-  - Digital Campaign/Promotion — email/digital outreach campaigns (e.g. NI Connect promo emails, registration drives)
+  - Digital Campaign/Promotion — email/digital outreach campaigns promoting training, events, or EA awareness (e.g. NI Connect promo emails, training registration drives, event promotions)
     Example: "Launched NI Connect promotional email campaign to NGC contacts, targeting registration and identifying potential presenters for the NGC-sponsored session. Campaign supports expansion positioning."
-  - MidTerm Reviews — formal midpoint EA review
+  - MidTerm Reviews — formal midpoint EA review with the customer covering usage and ROI
   - Newsletters — quarterly newsletters to account contacts covering product highlights, events, training, key POCs
     Example: "Distributed Q1 FY26 EA Quarterly Newsletter to L3Harris contacts. Content included NI product highlights, NI Connect event promotion, L3Harris-specific upcoming events, training resources, and key NI POC information. Reinforced EA value awareness."
   - Shared Space Set-up/Update — setting up or updating a shared portal or resource hub
@@ -480,13 +480,13 @@ EA ENGAGEMENT TYPE TAXONOMY — use the EXACT text shown below for both Type and
   - Other — recurring internal team syncs (e.g. biweekly account team calls) when they produced a concrete outcome
 
 **Type: Onboarding & Kick-Off** — onboarding new admins or users:
-  - EA Admin Onboarding — onboarding a new customer-side EA Admin (person at Frontgrade, LM, NGC, L3Harris, etc. who manages EA logistics for their company) to EA scope, entitlements, and governance. This is always a customer-facing meeting.
+  - EA Admin Onboarding — onboarding a new customer-side EA Admin (customer IT administrator who runs the EA or maintains NI licensing for their company) to EA scope, entitlements, and governance. This is always a customer-facing meeting.
     Example: "EA Admin onboarding session for two new L3Harris EA Admins who recently took over the role. Session covered the full scope of the EA (software entitlements, training credits, etc.), admin Q&A, and established understanding of internal processes."
-  - EA End-User Kick-Off — kickoff session for end users
+  - EA End-User Kick-Off — introduction or review of EA terms, entitlements, and inclusions with customer end users
   - Other
 
 **Type: Strategic Relationship Management** — high-touch customer-facing relationship and governance activities:
-  - EA Admin Sync — recurring or ad-hoc sync with the customer-side EA Admin (the person at Frontgrade, LM, NGC, L3Harris, etc. who manages their EA) or other key customer stakeholders. These contacts are NOT NI employees.
+  - EA Admin Sync — recurring or ad-hoc sync with the customer-side EA Admin (customer IT administrator who runs the EA or maintains NI licensing for their company) or other key customer stakeholders. These contacts are NOT NI employees.
     Example: "Frontgrade TestStand Pilot Check In and EA Renewal Alignment — Meeting with Marc Pevotaux to review pilot status and align on renewal timeline."
   - Escalation/Risk Management — active risk mitigation, escalations, or at-risk situations
     Example: "Active R&D escalation on behalf of Bret Ridgel (Northrop Grumman) related to a TKM505X IVI driver issue preventing LabVIEW control of the Tektronix MSO46B. Original FAE ticket stalled after R&D contacts left NI. CSM submitted an R&D Advocacy request to unblock."
