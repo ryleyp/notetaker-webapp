@@ -427,11 +427,12 @@ TASK: Identify all meaningful, reportable CSM activities from these sources and 
 
 OUTPUT FORMAT — output ONLY this Markdown table, nothing else (no intro, no headings, no commentary):
 
-| Account | Engagement Title | Type | Subtype | Comments |
-|---------|-----------------|------|---------|----------|
+| Account | Event Date | Engagement Title | Type | Subtype | Comments |
+|---------|------------|-----------------|------|---------|----------|
 
 Column rules:
 - **Account**: always "${acct}"
+- **Event Date**: the date of the note this activity came from (YYYY-MM-DD format, taken from the ### heading of the source)
 - **Engagement Title**: 5–10 words, descriptive (e.g. "Q2 SystemLink License True-Up Sync")
 - **Type** and **Subtype**: must exactly match one option from the taxonomy below
 - **Comments**: max 1,000 characters. Write for an executive audience — lead with outcome/impact, name specific contacts and titles, connect to adoption/expansion/renewal/risk. Every comment must answer "what happened and why does it matter?" Show CSM ownership and strategic intent, not logistics.
