@@ -673,6 +673,8 @@ export async function POST(request) {
           for await (const event of messageStream) {
             if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
               send({ type: "delta", text: event.delta.text });
+            } else if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta") {
+              send({ type: "thinking" });
             }
           }
 

@@ -61,6 +61,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
   const [scrubReport, setScrubReport] = useState([]);
   const [restoredIds, setRestoredIds] = useState(new Set());
   const [scrubOpen, setScrubOpen] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
   const [model, setModel] = useState(settings.model || "claude-haiku-4-5");
 
@@ -105,6 +106,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
     setSaved(false);
     setShowConfirm(false);
     setDroppedCount(0);
+    setIsThinking(false);
 
     try {
       const res = await fetch("/api/synthesize", {
@@ -143,7 +145,10 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
         for (const part of parts) {
           if (!part.startsWith("data: ")) continue;
           const evt = JSON.parse(part.slice(6));
-          if (evt.type === "delta") {
+          if (evt.type === "thinking") {
+            setIsThinking(true);
+          } else if (evt.type === "delta") {
+            setIsThinking(false);
             accumulated += evt.text;
             setOutput(accumulated);
           } else if (evt.type === "done") {
@@ -514,7 +519,9 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
             />
           )}
           {synthesizing && !output && (
-            <div className="card p-6 text-sm text-gray-500 animate-pulse">Waiting for Claude…</div>
+            <div className="card p-6 text-sm text-gray-500 animate-pulse">
+              {isThinking ? "Claude is classifying activities…" : "Waiting for Claude…"}
+            </div>
           )}
         </div>
       )}
