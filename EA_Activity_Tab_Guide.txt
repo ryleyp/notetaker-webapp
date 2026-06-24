@@ -1,0 +1,82 @@
+EA ACTIVITY TAB — USER GUIDE
+=============================
+
+
+WHAT IT DOES
+------------
+The EA Activity tab reads your Obsidian meeting notes from the past quarter
+and generates a pre-formatted activity table you can copy into Salesforce
+for EA Engagement reporting. It automatically identifies reportable
+activities, picks the correct Type and Subtype from the SFDC taxonomy,
+and writes a comment for each row.
+
+
+STEP-BY-STEP
+------------
+1. Click "EA Activity" in the top navigation bar.
+
+2. Select the account folder you want to report on using the folder
+   picker (e.g. the folder for L3Harris, NGC, Frontgrade, etc.).
+
+3. Click "Scan Folder."
+   The app finds all notes dated within the past 3 months.
+
+4. Review the scrub panel (if it appears).
+   Lines containing keywords tied to other accounts are flagged for
+   removal. Check any flagged line you want to keep before generating.
+
+5. Choose a model.
+   - Haiku  — faster, lower cost
+   - Sonnet — better quality, recommended for this report
+
+6. Click "Generate EA Activity Report."
+   Rows stream in live as Claude reads through your notes.
+
+7. When finished, click "Copy" to copy the Markdown table, or
+   "Save to Obsidian" to write it as a file in your vault.
+
+
+WHAT YOU GET
+------------
+A table with one row per reportable activity:
+
+  | Account | Event Date | Engagement Title | Type | Subtype | Comments |
+
+- Account          the account name from the folder you selected
+- Event Date       date of the meeting, pulled from the note heading
+- Engagement Title short name for the activity (SFDC-style)
+- Type             one of the 6 SFDC EA Engagement Types
+- Subtype          specific subtype within that Type
+- Comments         up to 1,000 characters, written for an executive reader
+
+
+WHAT GETS INCLUDED
+------------------
+- Customer meetings, including EA Admin syncs and governance calls
+- User group sessions and demo days
+- Internal NI sessions that produced a clear decision or outcome
+- Training planning sessions and campaign activities
+- Escalations and risk management activities
+- Case study and ROI capture sessions
+
+WHAT GETS LEFT OUT
+------------------
+- Routine emails or check-ins with no outcome
+- Duplicate rows if the same session appears in multiple notes
+- Notes from other accounts (filtered out automatically)
+- Low-value logistics with no reportable substance
+
+
+ABOUT EA ADMINS
+---------------
+EA Admins are IT administrators on the customer side (e.g. at L3Harris,
+Northrop Grumman, Lockheed Martin, Frontgrade) who manage NI licensing
+and EA logistics for their company. They are not NI employees.
+Meetings with EA Admins are always classified as customer-facing —
+either "EA Admin Sync" or "EA Admin Onboarding" depending on context.
+
+
+SAVING
+------
+Files are saved to your vault inside the selected account folder as:
+  EA Activity Report YYYY-MM-DD.md
