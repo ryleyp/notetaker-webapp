@@ -496,11 +496,11 @@ EA ENGAGEMENT TYPE TAXONOMY — use the EXACT text shown below for both Type and
 
 **Type: User Groups** — group sessions with multiple attendees. Pick subtype based on who led the session:
   - Demo Days — NI-led session where NI/FAE presents or demos products to the customer
-    Comment format: "[Title] | Region: [X] | Attendees: [#]\n[Description of session content and who led it.]\nOutcome: [adoption / expansion / risk reduction / customer momentum]"
-    Example: "L3Harris RF User Group | Region: AMER | Attendees: 22\nFAE and AM led users through an overview of NI RF Hardware Platforms and demoed InstrumentStudio. Session targeted RF-focused sites.\nOutcome: Drove direct product exposure across the RF engineering community and generated adoption momentum at targeted sites."
+    Comment format: "[Title] — Region: [X], Attendees: [#]. [Description of session content and who led it.] Outcome: [adoption / expansion / risk reduction / customer momentum]"
+    Example: "L3Harris RF User Group — Region: AMER, Attendees: 22. FAE and AM led users through an overview of NI RF Hardware Platforms and demoed InstrumentStudio. Session targeted RF-focused sites. Outcome: Drove direct product exposure across the RF engineering community and generated adoption momentum at targeted sites."
   - User Group — customer-sponsored recurring session; may include NI content but customer drives cadence/agenda
-    Comment format: "[Title] | Region: [X] | Attendees: [#]\n[Description]\nOutcome: [impact]"
-    Example: "Region: AMER | Participants: TBD | Conducted an LMS user group session focused on important updates to the LMS NI EA and entitlements. Maintained customer momentum and reinforced awareness of EA value."
+    Comment format: "[Title] — Region: [X], Attendees: [#]. [Description]. Outcome: [impact]"
+    Example: "LMS User Group — Region: AMER, Participants: TBD. Conducted an LMS user group session focused on important updates to the LMS NI EA and entitlements. Maintained customer momentum and reinforced awareness of EA value."
   - Other — planning or brainstorming sessions tied to user group execution (e.g. pre-UG sponsor sync)
   ⚠️ NI-led demo sessions = Demo Days. Customer-sponsored recurring groups = User Group. Pre-UG planning calls = Other.
 
