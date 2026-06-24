@@ -450,6 +450,7 @@ EA ENGAGEMENT TYPE TAXONOMY (use exact text for Type and Subtype):
 | Other | Other |
 
 COMMENT REQUIREMENTS:
+- Write in first person — you are Ryley/Riley, the CSM authoring this report. Use "I", "my", "we" — never "the CSM" or third-person references to yourself.
 - Name specific contacts (e.g., "sync with Maria Chen, IT Admin Lead") — never just "customer contact"
 - For User Group or Demo Day subtypes, the comment MUST include all three on separate lines:
   Region: [geographic location or site]
