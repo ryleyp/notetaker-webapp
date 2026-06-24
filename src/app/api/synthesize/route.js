@@ -433,65 +433,74 @@ OUTPUT FORMAT — output ONLY this Markdown table, nothing else (no intro, no he
 Column rules:
 - **Account**: always "${acct}"
 - **Event Date**: the date of the note this activity came from (YYYY-MM-DD format, taken from the ### heading of the source)
-- **Engagement Title**: 5–10 words, descriptive (e.g. "Q2 SystemLink License True-Up Sync")
+- **Engagement Title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
 - **Type** and **Subtype**: must exactly match one option from the taxonomy below
-- **Comments**: max 1,000 characters. Write for an executive audience — lead with outcome/impact, name specific contacts and titles, connect to adoption/expansion/renewal/risk. Every comment must answer "what happened and why does it matter?" Show CSM ownership and strategic intent, not logistics.
+- **Comments**: max 1,000 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
 
-EA ENGAGEMENT TYPE TAXONOMY — read the descriptions carefully before picking. Use the EXACT text shown for Type and Subtype.
+EA ENGAGEMENT TYPE TAXONOMY — use the EXACT subtype text shown. Read descriptions and examples before picking.
 
-**Entitlement Awareness and Promotion** — activities that help the customer understand or better use what they own (licenses, entitlements, tools):
-  - Digital Campaign/Promotion — email or digital outreach promoting adoption/entitlement awareness
-  - Midterm Review — formal check-in partway through an EA term to review utilization
-  - Newsletter — written communications sent to the account
-  - Shared Space Set-Up / Update — setting up or updating a shared portal, SharePoint, or resource hub
-  - Training or Support Plan — creating or defining a training/support strategy document
-  - Training or Support Webinar — delivering a live training or support session
+**Entitlement Awareness and Promotion** — activities promoting awareness or use of EA entitlements:
+  - Digital Campaign/Promotion — email/digital outreach campaigns (e.g. NI Connect promo emails, registration drives)
+    Example comment: "Launched NI Connect promotional email campaign to NGC contacts, targeting registration and identifying potential presenters for the NGC-sponsored session. Campaign supports expansion positioning."
+  - MidTerm Reviews — formal midpoint EA review (typically auto-generated placeholder)
+  - Newsletters — quarterly newsletters sent to account contacts covering product highlights, events, training, key POCs
+    Example comment: "Distributed Q1 FY26 EA Quarterly Newsletter to L3Harris contacts. Content included NI product highlights, NI Connect event promotion, L3Harris-specific upcoming events, training resources, and key NI POC information. Reinforced EA value awareness."
+  - Shared Space Set-Up / Update — setting up or updating a shared portal or resource hub
+  - Training/Support Plans — creating or scheduling a formal training plan across sites/teams
+    Example comment: "Sync with Jordan (GTS, LM MFC), Nicole, and Angelica (NI Education Services) to scope LabVIEW Core 1 and Core 2 training across MFC sites. MFC holds ~7,600 EA training credits over 3 years. Confirmed in-person, instructor-led format."
+  - Training/Support Webinar — delivering a live training or support session to users
   - Other
 
-**Internal Alignment and Collaboration** — NI-internal activities (no customer present). Only log if a clear decision or outcome resulted:
-  - Account Planning — internal account strategy or planning session
-  - Account Team Kickoff — kickoff with internal account team members
-  - Product Feedback — internal session to share or escalate customer product feedback
+**Internal Alignment and Collaboration** — NI-internal sessions (no customer present). Only log if a clear decision or outcome resulted:
+  - Account Planning — CSM/FAE interlock, account strategy sessions, NI Connect planning calls, internal alignment that produced a defined outcome
+    Example comment: "CSM/FAE FY26 account interlock for Northrop Grumman. Reviewed CS focus areas, current usage data trends, and CS execution plan including site-level priorities. Identified specific gaps in FAE workflow where CSM provides strategic coverage."
+  - Account Team Kick-Off — formal kickoff session with the full internal account team (CSM, FAE, AM, etc.)
+    Example comment: "CSM/FAE Interlock for FY 2026, reviewing CS Focus Areas, overview of usage data trends, CS execution plans including site level and event calendar, and brainstorming session on where CS can help fill in gaps in the FAE workflow."
+  - Product Feedback — internal session to escalate or document customer product feedback
 
-**Onboarding & Kick-off** — activities specifically around onboarding new users/admins or launching an engagement:
-  - EA Admin Onboarding — onboarding admin contacts; comment must include number of attendees
+**Onboarding & Kick-off** — onboarding new admins or users:
+  - EA Admin Onboarding — onboarding EA admin contacts to EA scope, entitlements, and governance
+    Example comment: "EA Admin onboarding session for two new L3Harris EA Admins who recently took over the role. Session covered the full scope of the EA (software entitlements, training credits, etc.), admin Q&A, and established understanding of internal processes."
   - EA End-User Kick-off — kickoff session for end users
   - Other
 
 **Strategic Relationship Management** — high-touch customer-facing relationship and governance activities:
-  - EA Admin Sync — recurring or ad-hoc sync with EA admin contacts
-  - Escalation / Risk Management — addressing a risk, escalation, or at-risk situation
-  - QBR / EBR — formal quarterly or executive business review
+  - EA Admin Sync — recurring or ad-hoc sync with EA admin or key stakeholder contacts
+    Example comment: "Frontgrade TestStand Pilot Check In and EA Renewal Alignment - Meeting with Marc Pevotaux."
+  - Escalation/Risk Management — active risk mitigation, escalations, or at-risk situations
+    Example comment: "Active R&D escalation on behalf of Bret Ridgel (Northrop Grumman) related to a TKM505X IVI driver issue preventing LabVIEW control of the Tektronix MSO46B. Original FAE ticket stalled after R&D contacts left NI. CSM submitted an R&D Advocacy request to unblock."
+  - QBRs/EBRs — formal quarterly or executive business review
   - Product Roadmap Review — session reviewing NI product roadmap with customer stakeholders
   - SystemLink Enterprise Governance — SystemLink-specific governance meetings
-  - Other
+  - Other — use for recurring internal team syncs (e.g. biweekly account team calls) when they produced a concrete outcome
 
-**User Groups** — group sessions with multiple customer attendees. Choose subtype carefully:
-  - Demo Day — NI-led session where NI presents or demos products (NI is running it). Comment MUST include: number of attendees, topics covered, presenters.
-  - User Group — customer-led session where customers drive the agenda. Comment MUST include: number of attendees, topics covered, presenters.
-  - Other
-  ⚠️ If NI ran the session and presented demos, it is Demo Day — NOT User Group.
+**User Groups** — group sessions with multiple attendees. Pick subtype based on who led the session:
+  - Demo Days — NI-led session where NI/FAE presents or demos products to the customer
+    Comment format: "[Title] | Region: [X] | Attendees: [#]\n[Description of session content and who led it.]\nOutcome: [adoption / expansion / risk reduction / customer momentum]"
+    Example: "L3Harris RF User Group | Region: AMER | Attendees: 22\nFAE and AM led users through an overview of NI RF Hardware Platforms and demoed InstrumentStudio. Session targeted RF-focused sites and drove direct product exposure across the RF engineering community.\nOutcome: Targeted adoption drive across RF-focused sites."
+  - User Group — customer-sponsored recurring group session; may include NI content but customer drives cadence/agenda
+    Comment format: "[Title] | Region: [X] | Attendees: [#]\n[Description]\nOutcome: [impact]"
+    Example: "Region: AMER | Participants: TBD | Conducted an LMS user group session focused on important updates to the LMS NI EA and entitlements included in EA. Maintained customer momentum and reinforced awareness of EA value."
+  - Other — planning or brainstorming sessions tied to user group execution (e.g. pre-UG sync with sponsors)
+  ⚠️ NI-led demo sessions = Demo Days. Customer-sponsored recurring groups = User Group. Pre-UG planning calls with sponsors = Other.
 
-**Value Realization and Success Stories** — activities that capture or communicate customer outcomes and ROI:
-  - Case Study — written or formal case study; comment must include title and products covered
-  - Customer Testimonial — capturing a customer success quote or testimonial
+**Value Realization and Success Stories** — capturing or communicating customer outcomes and ROI:
+  - Case Study — written or formal case study in progress or completed
+    Example comment: "Initiated SystemLink case study with Eric Reek (IT Admin Lead, L3Harris) documenting the successful deployment of SystemLink Server at L3Harris Florida sites. Sessions held 3/11 and 3/12 to capture deployment scope, outcomes, and measurable value."
+  - Customer Testimonial — capturing a customer success quote or formal testimonial
   - Outcome Review — reviewing measured outcomes and value delivered
   - SystemLink ROI Review — formal ROI review specific to SystemLink
   - Other
 
-**Other** — only use if truly none of the above types fit.
+**Other** — only use if truly none of the above types fit. Also used for internal license/process alignment calls that don't fit Internal Alignment.
 
 COMMENT REQUIREMENTS:
-- Refer to yourself as "CSM" (e.g., "CSM coordinated...", "CSM synced with...") — never use I/we/my, and never say "the CSM" in a detached way; write it as an active subject.
-- Name specific contacts (e.g., "sync with Maria Chen, IT Admin Lead") — never just "customer contact"
-- For User Group or Demo Day subtypes, the comment MUST include all three on separate lines:
-  Region: [geographic location or site]
-  Attendees: [number, or TBD if future event]
-  Outcome: [adoption wins / expansion signals / risk reduction / customer momentum]
-- A user group is customer-led. If NI ran the session, use Demo Day or the appropriate Training subtype instead.
-- Internal activities: only log if they produced a clear decision or outcome. Use "Account Planning" or "Other" subtype with a description of the result.
-- Connect each activity to revenue where possible — adoption, expansion, or renewal impact.
-- Avoid writing comments that read like scaled/routine CSM work. Reflect strategic engagement.
+- Use "CSM" as the active subject (e.g., "CSM coordinated...", "CSM submitted...", "CSM/FAE interlock...") — never I/we/my
+- Name specific people by name and title when available (e.g., "Eric Reek, IT Admin Lead")
+- Every comment must state what happened AND why it matters (adoption, expansion, renewal, risk)
+- For Demo Days and User Groups, always include Region, Attendees (or TBD), and Outcome
+- Keep comments under 1,000 characters
+- Skip activities that are just logistics with no outcome (e.g. routine calendar holds, placeholder reminders)
 
 SOURCES (${rangeLabel}):
 
