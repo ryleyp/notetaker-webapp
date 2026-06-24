@@ -530,17 +530,6 @@ SOURCES (${rangeLabel}):
 ${noteBlocks}`;
 }
 
-const ADAPTIVE_THINKING_MODELS = new Set([
-  "claude-opus-4-8",
-  "claude-opus-4-7",
-  "claude-opus-4-6",
-  "claude-sonnet-4-6",
-]);
-
-function supportsAdaptiveThinking(model) {
-  return ADAPTIVE_THINKING_MODELS.has(model);
-}
-
 // Max output tokens per model. Sonnet 4.6 supports 16k; Haiku 4.5 caps at 8k.
 const MODEL_MAX_OUTPUT = {
   "claude-opus-4-8": 32_000,
@@ -651,14 +640,9 @@ export async function POST(request) {
         const send = (obj) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         try {
           const resolvedModel = model || "claude-sonnet-4-6";
-          const thinkingOpts = promptType === "csm-activity" && supportsAdaptiveThinking(resolvedModel)
-            ? { thinking: { type: "adaptive" } }
-            : {};
-
           const messageStream = client.messages.stream({
             model: resolvedModel,
             max_tokens: maxOutputTokens(resolvedModel),
-            ...thinkingOpts,
             system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
             messages: [{
               role: "user",
@@ -673,8 +657,6 @@ export async function POST(request) {
           for await (const event of messageStream) {
             if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
               send({ type: "delta", text: event.delta.text });
-            } else if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta") {
-              send({ type: "thinking" });
             }
           }
 
