@@ -405,6 +405,65 @@ List any cases where a newer source contradicts, reverses, or materially updates
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
+function buildCSMActivityPrompt(notes, today, accountName, allAccounts) {
+  const threeMonthsAgo = new Date(today);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+
+  const acct = accountName && accountName !== "Internal" ? accountName : "this account";
+
+  const noteBlocks = notes
+    .map((n) => {
+      const tag = n.source === "cross-vault" ? ` [${n.sourceLabel}]` : "";
+      return `### ${n.date} — ${n.title}${tag}${n._dayLabel || ""}\n\n${n.content}`;
+    })
+    .join("\n\n---\n\n");
+
+  const exclusion = buildExclusionList(acct, allAccounts);
+
+  return `You are a NI Software Customer Success Manager creating an EA Engagement Activity Report for **${acct}** based on ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}).
+${exclusion ? `\n${exclusion}` : ""}
+TASK: Identify all meaningful, reportable CSM activities from these sources and output an EA Engagement Activity Report as a Markdown table. Do NOT include routine emails, low-value check-ins, or any activity that wouldn't impress an executive reader. If two notes describe the same session, produce only one row — no duplicates.
+
+OUTPUT FORMAT — output ONLY this Markdown table, nothing else (no intro, no headings, no commentary):
+
+| Account | Engagement Title | Type | Subtype | Comments |
+|---------|-----------------|------|---------|----------|
+
+Column rules:
+- **Account**: always "${acct}"
+- **Engagement Title**: 5–10 words, descriptive (e.g. "Q2 SystemLink License True-Up Sync")
+- **Type** and **Subtype**: must exactly match one option from the taxonomy below
+- **Comments**: max 1,000 characters. Write for an executive audience — lead with outcome/impact, name specific contacts and titles, connect to adoption/expansion/renewal/risk. Every comment must answer "what happened and why does it matter?" Show CSM ownership and strategic intent, not logistics.
+
+EA ENGAGEMENT TYPE TAXONOMY (use exact text for Type and Subtype):
+
+| Type | Valid Subtypes |
+|------|---------------|
+| Entitlement Awareness and Promotion | Digital Campaign/Promotion \| Midterm Review \| Newsletter \| Shared Space Set-Up / Update \| Training or Support Plan \| Training or Support Webinar \| Other |
+| Internal Alignment and Collaboration | Account Planning \| Account Team Kickoff \| Product Feedback |
+| Onboarding & Kick-off | EA Admin Onboarding \| EA End-User Kick-off \| Other |
+| Strategic Relationship Management | EA Admin Sync \| Escalation / Risk Management \| QBR / EBR \| Product Roadmap Review \| SystemLink Enterprise Governance \| Other |
+| User Groups | Demo Day \| User Group \| Other |
+| Value Realization and Success Stories | Case Study \| Customer Testimonial \| Outcome Review \| SystemLink ROI Review \| Other |
+| Other | Other |
+
+COMMENT REQUIREMENTS:
+- Name specific contacts (e.g., "sync with Maria Chen, IT Admin Lead") — never just "customer contact"
+- For User Group or Demo Day subtypes, the comment MUST include all three on separate lines:
+  Region: [geographic location or site]
+  Attendees: [number, or TBD if future event]
+  Outcome: [adoption wins / expansion signals / risk reduction / customer momentum]
+- A user group is customer-led. If NI ran the session, use Demo Day or the appropriate Training subtype instead.
+- Internal activities: only log if they produced a clear decision or outcome. Use "Account Planning" or "Other" subtype with a description of the result.
+- Connect each activity to revenue where possible — adoption, expansion, or renewal impact.
+- Avoid writing comments that read like scaled/routine CSM work. Reflect strategic engagement.
+
+SOURCES (${rangeLabel}):
+
+${noteBlocks}`;
+}
+
 // Max output tokens per model. Sonnet 4.6 supports 16k; Haiku 4.5 caps at 8k.
 const MODEL_MAX_OUTPUT = {
   "claude-opus-4-8": 32_000,
@@ -467,7 +526,7 @@ function fitNotes(notes, model) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName, allAccounts = [], restoredIds = [] } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [] } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -520,7 +579,9 @@ export async function POST(request) {
             system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
             messages: [{
               role: "user",
-              content: productFocus
+              content: promptType === "csm-activity"
+                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts)
+                : productFocus
                 ? buildProductPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
                 : buildSynthesisPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts),
             }],

@@ -47,6 +47,16 @@ export default function Header({ onSettingsClick, isSettingsOpen, mode, onModeCh
               >
                 SL Status
               </button>
+              <button
+                onClick={() => onModeChange("csm-activity")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === "csm-activity"
+                    ? "bg-white text-obsidian-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                EA Activity
+              </button>
             </div>
 
             <button

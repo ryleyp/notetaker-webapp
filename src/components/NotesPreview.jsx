@@ -10,6 +10,34 @@ function renderMarkdown(text) {
   while (i < lines.length) {
     const line = lines[i];
 
+    // Markdown table — consume all consecutive pipe lines
+    if (line.startsWith("|")) {
+      const tableLines = [];
+      while (i < lines.length && lines[i].startsWith("|")) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      // Filter out separator rows (e.g. |---|---|)
+      const isSep = (l) => /^\|[\s\-|:]+\|$/.test(l);
+      const dataRows = tableLines.filter((l) => !isSep(l));
+      if (dataRows.length > 0) {
+        let tableHtml = '<div class="overflow-x-auto my-3"><table class="w-full text-xs border-collapse">';
+        dataRows.forEach((row, rowIdx) => {
+          const cells = row.split("|").slice(1, -1);
+          const tag = rowIdx === 0 ? "th" : "td";
+          const rowCls = rowIdx === 0 ? "bg-gray-100 font-semibold" : rowIdx % 2 === 0 ? "bg-gray-50" : "";
+          tableHtml += `<tr class="${rowCls}">`;
+          cells.forEach((cell) => {
+            tableHtml += `<${tag} class="border border-gray-200 px-2 py-1.5 align-top text-left">${formatInline(cell.trim())}</${tag}>`;
+          });
+          tableHtml += "</tr>";
+        });
+        tableHtml += "</table></div>";
+        result.push(tableHtml);
+      }
+      continue;
+    }
+
     // Inline tag line (e.g. "#austin #texas") — render as pills
     if (/^(#[a-z][a-z0-9-]*\s*)+$/i.test(line.trim()) && line.trim().startsWith("#")) {
       const tags = line.trim().split(/\s+/).map((t) => t.slice(1)).filter(Boolean);
