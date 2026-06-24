@@ -427,13 +427,12 @@ TASK: Identify all meaningful, reportable CSM activities from these sources and 
 
 OUTPUT FORMAT — output ONLY this Markdown table, nothing else (no intro, no headings, no commentary):
 
-| Account | Event Date | Engagement Title | Type | Subtype | Comments |
-|---------|------------|-----------------|------|---------|----------|
+| Event Date | Title | Type | Subtype | Comments |
+|------------|-------|------|---------|----------|
 
 Column rules:
-- **Account**: always "${acct}"
 - **Event Date**: the date of the note this activity came from (YYYY-MM-DD format, taken from the ### heading of the source)
-- **Engagement Title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
+- **Title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
 - **Type** and **Subtype**: must exactly match one option from the taxonomy below
 - **Comments**: max 1,000 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
 
