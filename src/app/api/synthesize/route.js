@@ -437,6 +437,24 @@ Column rules:
 - **Type** and **Subtype**: must exactly match one option from the taxonomy below
 - **Comments**: max 1,000 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
 
+CLASSIFICATION PROCESS — for each activity, evaluate ALL 6 Type options before selecting. Do not stop at the first type that seems plausible:
+
+1. **Entitlement Awareness & Promotion** — Is this about promoting EA entitlement awareness or usage? (emails, newsletters, training plans, shared portals)
+2. **Internal Alignment & Collaboration** — Was this NI-internal only with NO customer present? Did it produce a concrete decision or outcome? (If no clear outcome, skip it.)
+3. **Onboarding & Kick-Off** — Was this specifically onboarding a new EA admin or new end users to the EA scope and entitlements?
+4. **Strategic Relationship Management** — Was this a 1:1 or small-group customer-facing governance or relationship sync that doesn't qualify as a User Group or Onboarding?
+5. **User Groups** — Was this a group session with multiple attendees (demo, user group, or planning/coordination for one)?
+6. **Value Realization & Success Stories** — Was the primary purpose to capture or communicate customer ROI, outcomes, or a success story?
+
+Tiebreaker rules:
+- If NI-internal only → Internal Alignment & Collaboration (not Strategic)
+- If group session with multiple attendees → User Groups (not Strategic)
+- If onboarding a new admin or new users → Onboarding & Kick-Off (not Strategic)
+- If capturing/writing ROI or a success story → Value Realization (not Strategic)
+- Strategic Relationship Management is a catch-all for customer-facing relationship activities only after ruling out all more-specific types above
+
+For each activity, silently verify your choice by asking: "Is there a more specific type that fits better than what I'm about to pick?" Only then write the row.
+
 EA ENGAGEMENT TYPE TAXONOMY — use the EXACT text shown below for both Type and Subtype (copy it character-for-character). Read descriptions and examples before picking.
 
 **Type: Entitlement Awareness & Promotion** — activities promoting awareness or use of EA entitlements:
@@ -510,6 +528,17 @@ COMMENT REQUIREMENTS:
 SOURCES (${rangeLabel}):
 
 ${noteBlocks}`;
+}
+
+const ADAPTIVE_THINKING_MODELS = new Set([
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+]);
+
+function supportsAdaptiveThinking(model) {
+  return ADAPTIVE_THINKING_MODELS.has(model);
 }
 
 // Max output tokens per model. Sonnet 4.6 supports 16k; Haiku 4.5 caps at 8k.
@@ -621,9 +650,15 @@ export async function POST(request) {
       async start(controller) {
         const send = (obj) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         try {
+          const resolvedModel = model || "claude-sonnet-4-6";
+          const thinkingOpts = promptType === "csm-activity" && supportsAdaptiveThinking(resolvedModel)
+            ? { thinking: { type: "adaptive" } }
+            : {};
+
           const messageStream = client.messages.stream({
-            model: model || "claude-sonnet-4-6",
-            max_tokens: maxOutputTokens(model || "claude-sonnet-4-6"),
+            model: resolvedModel,
+            max_tokens: maxOutputTokens(resolvedModel),
+            ...thinkingOpts,
             system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
             messages: [{
               role: "user",
@@ -642,7 +677,7 @@ export async function POST(request) {
           }
 
           const final = await messageStream.finalMessage();
-          send({ type: "done", noteCount: kept.length, droppedCount: dropped, usage: final.usage, model: model || "claude-sonnet-4-6" });
+          send({ type: "done", noteCount: kept.length, droppedCount: dropped, usage: final.usage, model: resolvedModel });
         } catch (error) {
           send({ type: "error", message: error?.message || "Synthesis failed" });
         } finally {
