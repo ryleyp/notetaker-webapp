@@ -497,10 +497,14 @@ EA ENGAGEMENT TYPE TAXONOMY — use the EXACT subtype text shown. Read descripti
 COMMENT REQUIREMENTS:
 - Use "CSM" as the active subject (e.g., "CSM coordinated...", "CSM submitted...", "CSM/FAE interlock...") — never I/we/my
 - Name specific people by name and title when available (e.g., "Eric Reek, IT Admin Lead")
-- Every comment must state what happened AND why it matters (adoption, expansion, renewal, risk)
-- For Demo Days and User Groups, always include Region, Attendees (or TBD), and Outcome
-- Keep comments under 1,000 characters
-- Skip activities that are just logistics with no outcome (e.g. routine calendar holds, placeholder reminders)
+- Every comment must answer: what happened, who was involved, and why it matters — do not just describe logistics
+- State outcomes explicitly: what did this drive? (adoption, expansion signal, renewal positioning, risk reduction, customer momentum)
+- Show CSM ownership and leadership — describe what CSM drove, defined, or decided, not just that a meeting occurred
+- Connect to revenue where possible — note how the activity ties to expansion, adoption health, or renewal
+- Be specific — reference actual product names, site names, topics discussed, decisions made
+- For Demo Days and User Groups: always include Region, Attendees (or TBD), topics, and Outcome
+- Keep comments under 1,000 characters but use the full space when the detail is there — do not be artificially brief
+- Skip activities that are purely logistics with no outcome (routine calendar holds, placeholder reminders with no substance)
 
 SOURCES (${rangeLabel}):
 
