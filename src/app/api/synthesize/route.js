@@ -437,20 +437,52 @@ Column rules:
 - **Type** and **Subtype**: must exactly match one option from the taxonomy below
 - **Comments**: max 1,000 characters. Write for an executive audience — lead with outcome/impact, name specific contacts and titles, connect to adoption/expansion/renewal/risk. Every comment must answer "what happened and why does it matter?" Show CSM ownership and strategic intent, not logistics.
 
-EA ENGAGEMENT TYPE TAXONOMY (use exact text for Type and Subtype):
+EA ENGAGEMENT TYPE TAXONOMY — read the descriptions carefully before picking. Use the EXACT text shown for Type and Subtype.
 
-| Type | Valid Subtypes |
-|------|---------------|
-| Entitlement Awareness and Promotion | Digital Campaign/Promotion \| Midterm Review \| Newsletter \| Shared Space Set-Up / Update \| Training or Support Plan \| Training or Support Webinar \| Other |
-| Internal Alignment and Collaboration | Account Planning \| Account Team Kickoff \| Product Feedback |
-| Onboarding & Kick-off | EA Admin Onboarding \| EA End-User Kick-off \| Other |
-| Strategic Relationship Management | EA Admin Sync \| Escalation / Risk Management \| QBR / EBR \| Product Roadmap Review \| SystemLink Enterprise Governance \| Other |
-| User Groups | Demo Day \| User Group \| Other |
-| Value Realization and Success Stories | Case Study \| Customer Testimonial \| Outcome Review \| SystemLink ROI Review \| Other |
-| Other | Other |
+**Entitlement Awareness and Promotion** — activities that help the customer understand or better use what they own (licenses, entitlements, tools):
+  - Digital Campaign/Promotion — email or digital outreach promoting adoption/entitlement awareness
+  - Midterm Review — formal check-in partway through an EA term to review utilization
+  - Newsletter — written communications sent to the account
+  - Shared Space Set-Up / Update — setting up or updating a shared portal, SharePoint, or resource hub
+  - Training or Support Plan — creating or defining a training/support strategy document
+  - Training or Support Webinar — delivering a live training or support session
+  - Other
+
+**Internal Alignment and Collaboration** — NI-internal activities (no customer present). Only log if a clear decision or outcome resulted:
+  - Account Planning — internal account strategy or planning session
+  - Account Team Kickoff — kickoff with internal account team members
+  - Product Feedback — internal session to share or escalate customer product feedback
+
+**Onboarding & Kick-off** — activities specifically around onboarding new users/admins or launching an engagement:
+  - EA Admin Onboarding — onboarding admin contacts; comment must include number of attendees
+  - EA End-User Kick-off — kickoff session for end users
+  - Other
+
+**Strategic Relationship Management** — high-touch customer-facing relationship and governance activities:
+  - EA Admin Sync — recurring or ad-hoc sync with EA admin contacts
+  - Escalation / Risk Management — addressing a risk, escalation, or at-risk situation
+  - QBR / EBR — formal quarterly or executive business review
+  - Product Roadmap Review — session reviewing NI product roadmap with customer stakeholders
+  - SystemLink Enterprise Governance — SystemLink-specific governance meetings
+  - Other
+
+**User Groups** — group sessions with multiple customer attendees. Choose subtype carefully:
+  - Demo Day — NI-led session where NI presents or demos products (NI is running it). Comment MUST include: number of attendees, topics covered, presenters.
+  - User Group — customer-led session where customers drive the agenda. Comment MUST include: number of attendees, topics covered, presenters.
+  - Other
+  ⚠️ If NI ran the session and presented demos, it is Demo Day — NOT User Group.
+
+**Value Realization and Success Stories** — activities that capture or communicate customer outcomes and ROI:
+  - Case Study — written or formal case study; comment must include title and products covered
+  - Customer Testimonial — capturing a customer success quote or testimonial
+  - Outcome Review — reviewing measured outcomes and value delivered
+  - SystemLink ROI Review — formal ROI review specific to SystemLink
+  - Other
+
+**Other** — only use if truly none of the above types fit.
 
 COMMENT REQUIREMENTS:
-- Write in first person — you are Ryley/Riley, the CSM authoring this report. Use "I", "my", "we" — never "the CSM" or third-person references to yourself.
+- Refer to yourself as "CSM" (e.g., "CSM coordinated...", "CSM synced with...") — never use I/we/my, and never say "the CSM" in a detached way; write it as an active subject.
 - Name specific contacts (e.g., "sync with Maria Chen, IT Admin Lead") — never just "customer contact"
 - For User Group or Demo Day subtypes, the comment MUST include all three on separate lines:
   Region: [geographic location or site]
