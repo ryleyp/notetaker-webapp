@@ -440,7 +440,7 @@ Column rules:
 - **Event Date**: the date of the note this activity came from (YYYY-MM-DD format, taken from the ### heading of the source)
 - **Title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
 - **Type** and **Subtype**: must exactly match one option from the taxonomy below
-- **Comments**: max 1,000 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
+- **Comments**: max 800 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
 
 CLASSIFICATION PROCESS — for each activity, evaluate ALL 6 Type options before selecting. Do not stop at the first type that seems plausible:
 
@@ -529,7 +529,7 @@ COMMENT REQUIREMENTS:
 - Connect to revenue where possible — note how the activity ties to expansion, adoption health, or renewal
 - Be specific — reference actual product names, site names, topics discussed, decisions made
 - For Demo Days and User Groups: always include Region, Attendees (or TBD), topics, and Outcome
-- Keep comments under 1,000 characters but use the full space when the detail is there — do not be artificially brief
+- Keep comments under 800 characters but use the full space when the detail is there — do not be artificially brief
 - Skip activities that are purely logistics with no outcome (routine calendar holds, placeholder reminders with no substance)
 
 SOURCES (${rangeLabel}):
