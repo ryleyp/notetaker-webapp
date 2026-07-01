@@ -25,9 +25,11 @@ function contextLimit(model) {
   return MODEL_CONTEXT[model] || 200_000;
 }
 
-function threeMonthsAgoLabel() {
+const RANGE_MONTHS = 4;
+
+function rangeStartLabel() {
   const d = new Date();
-  d.setMonth(d.getMonth() - 3);
+  d.setMonth(d.getMonth() - RANGE_MONTHS);
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
@@ -80,7 +82,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
 
     try {
       const { name: accountName, aliases } = detectAccount(selectedFolder, settings.accounts);
-      const params = new URLSearchParams({ vaultPath: settings.vaultPath });
+      const params = new URLSearchParams({ vaultPath: settings.vaultPath, months: String(RANGE_MONTHS) });
       if (selectedFolder) params.set("folderPath", selectedFolder);
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
 
@@ -222,22 +224,22 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
         <div className="card p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-semibold text-gray-900 mb-1">EA Activity Report — Quarter Range</h3>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">EA Activity Report — Past 4 Months</h3>
               <p className="text-sm text-gray-500">
                 Scanning <span className="font-medium text-gray-700">{folderLabel}</span> for notes dated{" "}
-                <span className="font-medium text-gray-700">{threeMonthsAgoLabel()}</span> or later, then generating a CSM activity table.
+                <span className="font-medium text-gray-700">{rangeStartLabel()}</span> or later, then generating a CSM activity table.
               </p>
 
               {loadedNotes !== null && (
                 <div className="mt-3">
                   {loadedNotes.length === 0 ? (
                     <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200 inline-block">
-                      No notes with dates in the past 3 months found in this folder.
+                      No notes with dates in the past 4 months found in this folder.
                     </p>
                   ) : (
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-green-700">
-                        Found {loadedNotes.length} note{loadedNotes.length !== 1 ? "s" : ""} in the past quarter
+                        Found {loadedNotes.length} note{loadedNotes.length !== 1 ? "s" : ""} in the past 4 months
                       </p>
                       {loadCounts && (
                         <div className="flex gap-3 text-xs text-gray-500 flex-wrap">

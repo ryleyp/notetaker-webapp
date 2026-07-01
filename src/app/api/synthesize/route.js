@@ -406,9 +406,9 @@ Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
 function buildCSMActivityPrompt(notes, today, accountName, allAccounts) {
-  const threeMonthsAgo = new Date(today);
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-  const rangeLabel = `${threeMonthsAgo.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+  const rangeStart = new Date(today);
+  rangeStart.setMonth(rangeStart.getMonth() - 4);
+  const rangeLabel = `${rangeStart.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
 
   const acct = accountName && accountName !== "Internal" ? accountName : "this account";
 
@@ -421,7 +421,7 @@ function buildCSMActivityPrompt(notes, today, accountName, allAccounts) {
 
   const exclusion = buildExclusionList(acct, allAccounts);
 
-  return `You are a NI Software Customer Success Manager creating an EA Engagement Activity Report for **${acct}** based on ${notes.length} meeting notes and transcripts from the past quarter (${rangeLabel}).
+  return `You are a NI Software Customer Success Manager creating an EA Engagement Activity Report for **${acct}** based on ${notes.length} meeting notes and transcripts from the past 4 months (${rangeLabel}).
 ${exclusion ? `\n${exclusion}` : ""}
 CRITICAL ACCOUNT SCOPING RULES — these override everything else:
 - Report exclusively on **${acct}**. Do NOT include any activity that belongs to another customer account.

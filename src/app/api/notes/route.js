@@ -17,7 +17,7 @@ function parseDateFromContent(content) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function readFolder(dir, threeMonthsAgo, source, sourceLabel) {
+function readFolder(dir, cutoff, source, sourceLabel) {
   const notes = [];
   if (!fs.existsSync(dir)) return notes;
   let entries;
@@ -30,7 +30,7 @@ function readFolder(dir, threeMonthsAgo, source, sourceLabel) {
     try { content = fs.readFileSync(filePath, "utf-8"); } catch { continue; }
 
     const date = parseDateFromFilename(entry.name) || parseDateFromContent(content);
-    if (!date || date < threeMonthsAgo) continue;
+    if (!date || date < cutoff) continue;
 
     notes.push({
       filename: entry.name,
@@ -67,11 +67,13 @@ export async function GET(request) {
     return NextResponse.json({ error: "Path is outside vault" }, { status: 403 });
   }
 
-  const threeMonthsAgo = new Date();
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const monthsParam = parseInt(searchParams.get("months"), 10);
+  const months = Number.isFinite(monthsParam) && monthsParam > 0 ? monthsParam : 3;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
 
   // 1. Primary Obsidian folder notes
-  const primaryNotes = readFolder(targetDir, threeMonthsAgo, "obsidian", folderPath || "Vault root");
+  const primaryNotes = readFolder(targetDir, cutoff, "obsidian", folderPath || "Vault root");
 
   // 2. Cross-vault keyword search (other Obsidian subfolders, skipping transcript folders).
   // A note matches if any account alias appears as a whole word in its content.
@@ -87,7 +89,7 @@ export async function GET(request) {
         if (entry.name.toLowerCase().includes("transcript")) continue;
         if (entry.name.toLowerCase().includes("todo")) continue;
         const subDir = path.join(resolvedVault, entry.name);
-        const candidates = readFolder(subDir, threeMonthsAgo, "cross-vault", entry.name);
+        const candidates = readFolder(subDir, cutoff, "cross-vault", entry.name);
         for (const note of candidates) {
           if (accountAliases.some((a) => textHasAlias(note.content, a))) {
             crossVaultNotes.push(note);
