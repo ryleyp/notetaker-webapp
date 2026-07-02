@@ -75,7 +75,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                         Found {wf.loadedNotes.length} note{wf.loadedNotes.length !== 1 ? "s" : ""} in the past quarter
                       </p>
                       <CountsBadges counts={wf.loadCounts} />
-                      <NoteList notes={wf.loadedNotes} />
+                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} />
                     </div>
                   )}
 
@@ -112,7 +112,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             <ScanButton loading={wf.loading} scanned={wf.loadedNotes !== null} onClick={wf.handleLoadNotes} disabled={wf.loading || !settings.vaultPath} />
           </div>
 
-          {wf.loadedNotes?.length > 0 && !wf.showConfirm && (
+          {wf.activeNotes?.length > 0 && !wf.showConfirm && (
             <GeneratePanel
               scrub={scrub}
               model={wf.model}
@@ -124,9 +124,9 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             />
           )}
 
-          {wf.loadedNotes?.length > 0 && wf.showConfirm && (
+          {wf.activeNotes?.length > 0 && wf.showConfirm && (
             <PreflightPanel
-              notes={wf.loadedNotes}
+              notes={wf.activeNotes}
               loadCounts={wf.loadCounts}
               model={wf.model}
               setModel={wf.setModel}

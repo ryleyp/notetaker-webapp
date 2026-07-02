@@ -98,22 +98,64 @@ describe("getForbiddenKeywords", () => {
 
 describe("account name/alias bleed protection", () => {
   it("flags a line naming another account even with no keyword match", () => {
-    const notes = [note("a.md", "Good quarter\nL3Harris asked about licensing terms\nAll set")];
+    const notes = [note("a.md", "NGC quarter update\nL3Harris asked about licensing terms\nAll set")];
     const report = buildScrubReport(notes, "Northrop Grumman", ACCOUNTS);
     expect(report).toHaveLength(1);
     expect(report[0].line).toContain("L3Harris");
   });
 
   it("scrubs lines mentioning another account's alias", () => {
-    const notes = [note("a.md", "keep\nlockheed folks joined the call\nkeep too")];
+    const notes = [note("a.md", "L3Harris keep\nlockheed folks joined the call\nkeep too")];
     const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
-    expect(scrubbed.content).toBe("keep\nkeep too");
+    expect(scrubbed.content).toBe("L3Harris keep\nkeep too");
   });
 
   it("does not scrub the current account's own name from its own report", () => {
     const notes = [note("a.md", "L3Harris renewal is on track")];
     const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
     expect(scrubbed.content).toBe("L3Harris renewal is on track");
+  });
+});
+
+describe("context-aware scrubbing (orphaned content)", () => {
+  it("removes an entire heading section about another account, including lines with no forbidden term", () => {
+    const content = [
+      "# Northrop review",
+      "- add Northridge to coverage",
+      "- Space Park regional grouping",
+      "# L3Harris review",
+      "- l3harris renewal on track",
+    ].join("\n");
+    const [scrubbed] = scrubWithExceptions([note("a.md", content)], "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe("# L3Harris review\n- l3harris renewal on track");
+  });
+
+  it("removes a whole paragraph about another account when the current account is never named", () => {
+    const content = [
+      "Discussed lockheed renewal timeline",
+      "Follow up on unused training credits at Sunnyvale",
+      "Schedule next-gen test system upgrade sync",
+      "",
+      "L3Harris WESCAM demo went well",
+    ].join("\n");
+    const [scrubbed] = scrubWithExceptions([note("a.md", content)], "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe("\nL3Harris WESCAM demo went well");
+  });
+
+  it("keeps the rest of a paragraph that also names the current account", () => {
+    const content = "L3Harris and lockheed joint supplier review\nAction item for the L3Harris team";
+    const [scrubbed] = scrubWithExceptions([note("a.md", content)], "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe("Action item for the L3Harris team");
+  });
+
+  it("scrub report lists every line the scrubber would remove (block agreement)", () => {
+    const content = "Discussed lockheed renewal\nFollow up on Sunnyvale credits\nSchedule sync";
+    const notes = [note("a.md", content)];
+    const report = buildScrubReport(notes, "L3Harris", ACCOUNTS);
+    expect(report.map((r) => r.id)).toEqual(["a.md__0", "a.md__1", "a.md__2"]);
+    // Restoring everything must round-trip to the original.
+    const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS, report.map((r) => r.id));
+    expect(scrubbed.content).toBe(content);
   });
 });
 
@@ -178,7 +220,7 @@ describe("findAccountBleed", () => {
 
 describe("buildScrubReport", () => {
   it("flags lines containing other accounts' keywords", () => {
-    const notes = [note("2026-06-01 - L3 Sync.md", "L3 renewal on track\nNGC asked about licensing\nAll good")];
+    const notes = [note("2026-06-01 - L3 Sync.md", "L3Harris renewal on track\nNGC asked about licensing\nAll good")];
     const report = buildScrubReport(notes, "L3Harris", ACCOUNTS);
     expect(report).toHaveLength(1);
     expect(report[0].line).toBe("NGC asked about licensing");
@@ -202,7 +244,7 @@ describe("buildScrubReport", () => {
   });
 
   it("assigns stable per-note line IDs across multiple notes", () => {
-    const notes = [note("a.md", "NGC one"), note("b.md", "safe\nMFC two")];
+    const notes = [note("a.md", "NGC one"), note("b.md", "L3Harris safe\nMFC two")];
     const report = buildScrubReport(notes, "L3Harris", ACCOUNTS);
     expect(report.map((r) => r.id)).toEqual(["a.md__0", "b.md__1"]);
   });
@@ -210,15 +252,15 @@ describe("buildScrubReport", () => {
 
 describe("scrubWithExceptions", () => {
   it("removes flagged lines from note content", () => {
-    const notes = [note("a.md", "keep this\nNGC secret line\nkeep this too")];
+    const notes = [note("a.md", "L3Harris keep this\nNGC secret line\nkeep this too")];
     const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
-    expect(scrubbed.content).toBe("keep this\nkeep this too");
+    expect(scrubbed.content).toBe("L3Harris keep this\nkeep this too");
   });
 
   it("preserves lines whose IDs were restored via checkbox", () => {
-    const notes = [note("a.md", "keep\nNGC restored line\nMFC removed line")];
+    const notes = [note("a.md", "L3Harris keep\nNGC restored line\nMFC removed line")];
     const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS, ["a.md__1"]);
-    expect(scrubbed.content).toBe("keep\nNGC restored line");
+    expect(scrubbed.content).toBe("L3Harris keep\nNGC restored line");
   });
 
   it("returns notes untouched when there are no forbidden keywords", () => {

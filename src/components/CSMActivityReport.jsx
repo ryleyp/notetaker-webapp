@@ -168,7 +168,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
                         Found {wf.loadedNotes.length} note{wf.loadedNotes.length !== 1 ? "s" : ""} in the selected range
                       </p>
                       <CountsBadges counts={wf.loadCounts} />
-                      <NoteList notes={wf.loadedNotes} />
+                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} />
                     </div>
                   )}
                 </div>
@@ -180,7 +180,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
             <ScanButton loading={wf.loading} scanned={wf.loadedNotes !== null} onClick={wf.handleLoadNotes} disabled={wf.loading || !settings.vaultPath} />
           </div>
 
-          {wf.loadedNotes?.length > 0 && !wf.showConfirm && (
+          {wf.activeNotes?.length > 0 && !wf.showConfirm && (
             <GeneratePanel
               scrub={scrub}
               model={wf.model}
@@ -192,10 +192,10 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
             />
           )}
 
-          {wf.loadedNotes?.length > 0 && wf.showConfirm && (
+          {wf.activeNotes?.length > 0 && wf.showConfirm && (
             <PreflightPanel
-              intro={<>Sending <strong>{wf.loadedNotes.length}</strong> notes to Claude to generate an EA Engagement Activity Report table.</>}
-              notes={wf.loadedNotes}
+              intro={<>Sending <strong>{wf.activeNotes.length}</strong> notes to Claude to generate an EA Engagement Activity Report table.</>}
+              notes={wf.activeNotes}
               loadCounts={wf.loadCounts}
               model={wf.model}
               setModel={wf.setModel}
@@ -220,7 +220,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
           {wf.partial && !wf.synthesizing && (
             <div className="flex items-center justify-between gap-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               <span>{wf.synthError || "Generation stopped early — partial output kept."}</span>
-              {wf.loadedNotes?.length ? (
+              {wf.activeNotes?.length ? (
                 <button onClick={handleResume} className="btn-secondary text-xs px-3 py-1 whitespace-nowrap">
                   Resume generation
                 </button>

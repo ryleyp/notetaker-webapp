@@ -33,18 +33,35 @@ export function CountsBadges({ counts, className = "" }) {
   );
 }
 
-export function NoteList({ notes }) {
+// When excludedFiles/onToggle are provided, each note gets an include
+// checkbox — unchecking drops that note from what is sent to Claude
+// (useful for multi-account internal meetings that don't belong in an
+// account-scoped report).
+export function NoteList({ notes, excludedFiles, onToggle }) {
+  const selectable = excludedFiles instanceof Set && typeof onToggle === "function";
   return (
     <ul className="text-xs text-gray-500 space-y-0.5 max-h-32 overflow-y-auto">
-      {notes.map((n) => (
-        <li key={n.filename} className="flex gap-2">
-          <span className="font-mono text-gray-400 flex-shrink-0">{n.date}</span>
-          <span className="truncate">{n.title}</span>
-          {n.source !== "obsidian" && (
-            <span className="text-gray-400 flex-shrink-0 italic">{n.sourceLabel}</span>
-          )}
-        </li>
-      ))}
+      {notes.map((n) => {
+        const excluded = selectable && excludedFiles.has(n.filename);
+        return (
+          <li key={n.filename} className={`flex gap-2 items-center ${excluded ? "opacity-40 line-through" : ""}`}>
+            {selectable && (
+              <input
+                type="checkbox"
+                checked={!excluded}
+                onChange={() => onToggle(n.filename)}
+                title={excluded ? "Excluded — click to include" : "Included — click to exclude from this report"}
+                className="flex-shrink-0 accent-obsidian-600"
+              />
+            )}
+            <span className="font-mono text-gray-400 flex-shrink-0">{n.date}</span>
+            <span className="truncate">{n.title}</span>
+            {n.source !== "obsidian" && (
+              <span className="text-gray-400 flex-shrink-0 italic">{n.sourceLabel}</span>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

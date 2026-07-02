@@ -78,23 +78,83 @@ export function findAccountBleed(text, accountName, allAccounts) {
   return hits;
 }
 
+// Terms belonging to the current account (used to decide whether a block of
+// text is anchored to the current account or orphaned).
+function getOwnTerms(accountName, allAccounts) {
+  return (allAccounts || [])
+    .filter((a) => a.name === accountName)
+    .flatMap((a) => [a.name, ...(a.aliases || []), ...(a.keywords || [])])
+    .filter(Boolean);
+}
+
+// Context-aware scrub: which line indexes of `content` should be removed.
+// Removing only the line that names another account leaves orphaned context
+// (site names, action items...) that the model then misattributes to the
+// current account. So:
+//  - a Markdown heading naming another account takes its whole section
+//  - a paragraph (blank-line-delimited block) naming another account is
+//    dropped entirely UNLESS it also names the current account, in which
+//    case only the offending lines are dropped
+export function computeScrubbedLineIndexes(content, accountName, allAccounts) {
+  const forbidden = getForbiddenKeywords(accountName, allAccounts);
+  const flagged = new Set();
+  if (!forbidden.length) return flagged;
+  const own = getOwnTerms(accountName, allAccounts);
+  const lines = (content || "").split("\n");
+  const isHeading = (l) => /^#{1,6}\s/.test(l.trim());
+
+  // Section rule: heading mentions another account → flag until next heading.
+  let i = 0;
+  while (i < lines.length) {
+    if (isHeading(lines[i]) && lineContainsKeyword(lines[i], forbidden)) {
+      flagged.add(i);
+      let j = i + 1;
+      while (j < lines.length && !isHeading(lines[j])) {
+        if (lines[j].trim()) flagged.add(j);
+        j++;
+      }
+      i = j;
+    } else {
+      i++;
+    }
+  }
+
+  // Paragraph rule: blank-line-delimited blocks.
+  let start = null;
+  for (let k = 0; k <= lines.length; k++) {
+    const blank = k === lines.length || !lines[k].trim();
+    if (!blank && start === null) start = k;
+    if (blank && start !== null) {
+      const block = lines.slice(start, k);
+      if (block.some((l) => lineContainsKeyword(l, forbidden))) {
+        const anchored = own.length > 0 && block.some((l) => lineContainsKeyword(l, own));
+        for (let x = start; x < k; x++) {
+          if (!lines[x].trim()) continue;
+          if (!anchored || lineContainsKeyword(lines[x], forbidden)) flagged.add(x);
+        }
+      }
+      start = null;
+    }
+  }
+
+  return flagged;
+}
+
 // Returns list of lines that would be scrubbed, with stable IDs.
 export function buildScrubReport(notes, accountName, allAccounts) {
-  const forbidden = getForbiddenKeywords(accountName, allAccounts);
-  if (!forbidden.length) return [];
   const report = [];
   for (const note of notes) {
-    (note.content || "").split("\n").forEach((line, idx) => {
-      if (line.trim() && lineContainsKeyword(line, forbidden)) {
-        report.push({
-          id: `${note.filename}__${idx}`,
-          noteFilename: note.filename,
-          noteTitle: note.title,
-          noteDate: note.date,
-          line,
-        });
-      }
-    });
+    const lines = (note.content || "").split("\n");
+    const flagged = computeScrubbedLineIndexes(note.content || "", accountName, allAccounts);
+    for (const idx of [...flagged].sort((a, b) => a - b)) {
+      report.push({
+        id: `${note.filename}__${idx}`,
+        noteFilename: note.filename,
+        noteTitle: note.title,
+        noteDate: note.date,
+        line: lines[idx],
+      });
+    }
   }
   return report;
 }
@@ -106,15 +166,18 @@ export function scrubWithExceptions(notes, accountName, allAccounts, restoredIds
   const forbidden = getForbiddenKeywords(accountName, allAccounts);
   if (!forbidden.length) return notes;
   const restored = new Set(restoredIds);
-  return notes.map((note) => ({
-    ...note,
-    title: redactForbiddenTerms(note.title || "", accountName, allAccounts).text,
-    content: (note.content || "")
-      .split("\n")
-      .filter((line, idx) => {
-        if (restored.has(`${note.filename}__${idx}`)) return true;
-        return !lineContainsKeyword(line, forbidden);
-      })
-      .join("\n"),
-  }));
+  return notes.map((note) => {
+    const flagged = computeScrubbedLineIndexes(note.content || "", accountName, allAccounts);
+    return {
+      ...note,
+      title: redactForbiddenTerms(note.title || "", accountName, allAccounts).text,
+      content: (note.content || "")
+        .split("\n")
+        .filter((line, idx) => {
+          if (restored.has(`${note.filename}__${idx}`)) return true;
+          return !flagged.has(idx);
+        })
+        .join("\n"),
+    };
+  });
 }

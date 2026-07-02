@@ -48,6 +48,7 @@ CRITICAL ACCOUNT SCOPING RULES — these override everything else:
 - If a source mentions ${acct} only in passing, extract just the ${acct}-relevant parts.
 - If a source has no ${acct} content, ignore it entirely.
 - Never write a sentence that is about another account. The reader only cares about ${acct}.
+- ATTRIBUTION RULE: Lines and sections mentioning other accounts were removed before these notes reached you, so some sources (especially internal or multi-account meetings like site-level reviews and team syncs) may contain orphaned fragments whose account is no longer identifiable. NEVER assume such content is about ${acct}. Only attribute content to ${acct} when the surrounding text explicitly names ${acct} or an unambiguous ${acct} identifier. When the subject is unclear, LEAVE IT OUT — do not rewrite another account's content to sound like it happened at ${acct}.
 ${buildExclusionList(acct, allAccounts)}
 `
     : "";
@@ -245,6 +246,7 @@ CRITICAL ACCOUNT SCOPING RULES — these override everything else:
 - Some sources come from other folders and may contain content about other accounts. Use ONLY the portions about ${acct}. Ignore everything about any other account, even within the same note.
 - If a source has no ${acct} + ${p} content, ignore it entirely.
 - Never write a sentence about ${p} at another account. The reader only cares about ${acct}.
+- ATTRIBUTION RULE: Lines and sections mentioning other accounts were removed before these notes reached you, so some sources may contain orphaned fragments whose account is no longer identifiable. NEVER assume such content is about ${acct}. Only attribute content to ${acct} when the surrounding text explicitly names ${acct} or an unambiguous ${acct} identifier. When the subject is unclear, LEAVE IT OUT — do not rewrite another account's content to sound like it happened at ${acct}.
 ${buildExclusionList(acct, allAccounts)}
 `
     : "";
@@ -436,6 +438,7 @@ CRITICAL ACCOUNT SCOPING RULES — these override everything else:
 - Some notes may mention other accounts or come from shared folders. Extract ONLY activities that involve ${acct}. Ignore everything else, even within the same note.
 - Never write a row about another account. If an activity does not involve ${acct}, skip it entirely.
 - Do not mention any other account name, alias, or keyword in any field.
+- ATTRIBUTION RULE: Lines and sections mentioning other accounts were removed before these notes reached you, so some sources (especially internal or multi-account meetings like site-level reviews and team syncs) may contain orphaned fragments whose account is no longer identifiable. NEVER assume such content is about ${acct}. Only report an activity as ${acct}'s when the surrounding text explicitly names ${acct} or an unambiguous ${acct} identifier (a site, program, or contact you can see belongs to ${acct} in the same source). When the subject is unclear, SKIP the activity entirely — do not rewrite another account's activity to sound like it happened at ${acct}. A partial report is correct; a misattributed row is a serious error.
 
 TASK: Identify all meaningful, reportable CSM activities from these sources and output an EA Engagement Activity Report. Do NOT include routine emails, low-value check-ins, or any activity that wouldn't impress an executive reader. If two notes describe the same session, produce only one activity — no duplicates.
 ${resumeRows?.length ? `

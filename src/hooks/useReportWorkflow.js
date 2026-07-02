@@ -35,6 +35,7 @@ export function useReportWorkflow({
   const [selectedFolder, setSelectedFolder] = useState("");
   const [rawNotes, setRawNotes] = useState(null);
   const [loadedNotes, setLoadedNotes] = useState(null);
+  const [excludedFiles, setExcludedFiles] = useState(new Set());
   const [loadCounts, setLoadCounts] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -112,6 +113,18 @@ export function useReportWorkflow({
     setShowConfirm(false);
     setScrubReport([]);
     setExtras(null);
+    setExcludedFiles(new Set());
+  }
+
+  // Manually drop a scanned note (e.g. a multi-account internal meeting)
+  // from what gets sent to Claude.
+  function toggleNoteExcluded(filename) {
+    setExcludedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(filename)) next.delete(filename);
+      else next.add(filename);
+      return next;
+    });
   }
 
   function selectFolder(f) {
@@ -161,10 +174,12 @@ export function useReportWorkflow({
     }
   }
 
+  const activeNotes = loadedNotes ? loadedNotes.filter((n) => !excludedFiles.has(n.filename)) : null;
+
   // opts.append   — continue on top of existing raw output (resume)
   // opts.extraBody — merged into the request body (e.g. resumeRows)
   async function handleSynthesize(opts = {}) {
-    if (!loadedNotes?.length) return;
+    if (!activeNotes?.length) return;
     setSynthesizing(true);
     setSynthError(null);
     setSaved(false);
@@ -195,7 +210,7 @@ export function useReportWorkflow({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          notes: loadedNotes,
+          notes: activeNotes,
           apiKey: settings.apiKey || undefined,
           model,
           today: TODAY,
@@ -322,7 +337,7 @@ export function useReportWorkflow({
   return {
     TODAY,
     selectedFolder, selectFolder,
-    rawNotes, loadedNotes, loadCounts, loadError, loading, extras,
+    rawNotes, loadedNotes, activeNotes, excludedFiles, toggleNoteExcluded, loadCounts, loadError, loading, extras,
     showConfirm, setShowConfirm,
     synthesizing, synthError, output, setOutput, partial, redactedCount,
     saving, saved, savedPath, synthCost, droppedCount,

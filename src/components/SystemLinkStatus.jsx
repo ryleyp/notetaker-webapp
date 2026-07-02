@@ -84,7 +84,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                         )}
                       </p>
                       <CountsBadges counts={wf.loadCounts} />
-                      <NoteList notes={wf.loadedNotes} />
+                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} />
                     </>
                   )}
                 </div>
@@ -96,7 +96,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
             <ScanButton loading={wf.loading} scanned={wf.loadedNotes !== null} onClick={wf.handleLoadNotes} disabled={wf.loading || !settings.vaultPath} />
           </div>
 
-          {wf.loadedNotes?.length > 0 && !wf.showConfirm && (
+          {wf.activeNotes?.length > 0 && !wf.showConfirm && (
             <GeneratePanel
               scrub={scrub}
               model={wf.model}
@@ -108,13 +108,13 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
             />
           )}
 
-          {wf.loadedNotes?.length > 0 && wf.showConfirm && (
+          {wf.activeNotes?.length > 0 && wf.showConfirm && (
             <PreflightPanel
               intro={
-                <>Sending <strong>{wf.loadedNotes.length}</strong> SystemLink-related notes to Claude.
+                <>Sending <strong>{wf.activeNotes.length}</strong> SystemLink-related notes to Claude.
                 {excludedCount > 0 && ` ${excludedCount} non-SL notes excluded.`}</>
               }
-              notes={wf.loadedNotes}
+              notes={wf.activeNotes}
               loadCounts={wf.loadCounts}
               model={wf.model}
               setModel={wf.setModel}
