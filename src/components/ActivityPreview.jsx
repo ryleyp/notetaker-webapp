@@ -2,25 +2,22 @@
 
 import { useState } from "react";
 import { formatCost } from "@/lib/pricing";
+import { rowsToMarkdown } from "@/lib/activityRows";
 
 const COMMENT_LIMIT = 800;
 
-// Parse a Markdown table into { header, rows } of trimmed cell strings.
-function parseTable(md) {
-  const lines = md.split("\n").map((l) => l.trim()).filter((l) => l.startsWith("|"));
-  const isSep = (l) => /^\|[\s\-|:]+\|$/.test(l);
-  const cellRows = lines.filter((l) => !isSep(l)).map((l) => l.split("|").slice(1, -1).map((c) => c.trim()));
-  if (!cellRows.length) return { header: [], rows: [] };
-  return { header: cellRows[0], rows: cellRows.slice(1) };
-}
+const COLUMNS = [
+  { key: "eventDate", label: "Event Date" },
+  { key: "title", label: "Title" },
+  { key: "type", label: "Type" },
+  { key: "subtype", label: "Subtype" },
+  { key: "comments", label: "Comments" },
+];
 
-function stripMd(text) {
-  return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
-}
-
-export default function ActivityPreview({ notes, onSave, saving, saved, savedPath, streaming, cost }) {
+export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow, onSave, saving, saved, savedPath, cost }) {
   const [viewMode, setViewMode] = useState("table");
   const [copiedKey, setCopiedKey] = useState(null);
+  const [editing, setEditing] = useState(null); // "row-col" key
 
   const copy = (text, key) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -29,8 +26,8 @@ export default function ActivityPreview({ notes, onSave, saving, saved, savedPat
     }).catch(() => {});
   };
 
-  const { header, rows } = parseTable(notes);
-  const commentIdx = header.findIndex((h) => /comment/i.test(h));
+  const markdown = rows.length ? rowsToMarkdown(rows) : rawText;
+  const reviewCount = rows.filter((r) => r.review).length;
 
   return (
     <div className="card overflow-hidden">
@@ -40,8 +37,13 @@ export default function ActivityPreview({ notes, onSave, saving, saved, savedPat
           {cost && !streaming && (
             <span className="text-xs text-gray-400 font-mono">{formatCost(cost)}</span>
           )}
-          {!streaming && rows.length > 0 && (
+          {rows.length > 0 && (
             <span className="text-xs text-gray-400">{rows.length} activit{rows.length !== 1 ? "ies" : "y"}</span>
+          )}
+          {!streaming && reviewCount > 0 && (
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+              ⚠ {reviewCount} row{reviewCount !== 1 ? "s" : ""} to review
+            </span>
           )}
           {streaming && (
             <span className="flex items-center gap-1 text-xs text-obsidian-600 font-medium">
@@ -72,83 +74,124 @@ export default function ActivityPreview({ notes, onSave, saving, saved, savedPat
               Markdown
             </button>
           </div>
-          <button onClick={() => copy(notes, "all")} className="btn-secondary text-xs px-3 py-1.5">
+          <button onClick={() => copy(markdown, "all")} className="btn-secondary text-xs px-3 py-1.5">
             {copiedKey === "all" ? "Copied!" : "Copy All"}
           </button>
         </div>
       </div>
 
       <div className="p-6">
-        {streaming || viewMode === "raw" || rows.length === 0 ? (
+        {viewMode === "raw" ? (
           <pre className="text-xs font-mono text-gray-700 whitespace-pre-wrap max-h-[600px] overflow-y-auto leading-relaxed">
-            {notes}
+            {markdown}
+          </pre>
+        ) : rows.length === 0 ? (
+          <pre className="text-xs font-mono text-gray-700 whitespace-pre-wrap max-h-[600px] overflow-y-auto leading-relaxed">
+            {rawText || "Waiting for rows…"}
           </pre>
         ) : (
           <>
-            <p className="text-xs text-gray-400 mb-2">Click any cell to copy it for Salesforce entry. Comments over {COMMENT_LIMIT} characters are flagged red.</p>
+            <p className="text-xs text-gray-400 mb-2">
+              Click a cell to copy it for Salesforce entry. Click a comment to edit it in place.
+              {reviewCount > 0 && " Rows marked ⚠ need a classification double-check."}
+            </p>
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-gray-100">
-                    {header.map((h, i) => (
-                      <th key={i} className="border border-gray-200 px-2 py-1.5 text-left font-semibold sticky top-0 bg-gray-100">
-                        {stripMd(h)}
-                      </th>
+                    {COLUMNS.map((c) => (
+                      <th key={c.key} className="border border-gray-200 px-2 py-1.5 text-left font-semibold sticky top-0 bg-gray-100">{c.label}</th>
                     ))}
                     <th className="border border-gray-200 px-2 py-1.5 sticky top-0 bg-gray-100" />
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, r) => (
-                    <tr key={r} className={r % 2 === 1 ? "bg-gray-50" : ""}>
-                      {row.map((cell, c) => {
-                        const key = `${r}-${c}`;
-                        const text = stripMd(cell);
-                        const isComment = c === commentIdx;
+                    <tr key={r} className={row.review ? "bg-amber-50" : r % 2 === 1 ? "bg-gray-50" : ""}>
+                      {COLUMNS.map((c) => {
+                        const key = `${r}-${c.key}`;
+                        const text = row[c.key] || "";
+                        const isComment = c.key === "comments";
                         const over = isComment && text.length > COMMENT_LIMIT;
+                        const isEditing = editing === key;
+
+                        if (isComment && isEditing) {
+                          return (
+                            <td key={c.key} className="border border-gray-200 p-1 align-top w-2/5">
+                              <textarea
+                                autoFocus
+                                defaultValue={text}
+                                rows={Math.max(4, Math.ceil(text.length / 70))}
+                                onBlur={(e) => { onUpdateRow(r, { comments: e.target.value }); setEditing(null); }}
+                                className="input w-full text-xs font-normal leading-relaxed"
+                              />
+                              <p className="text-[10px] text-gray-400 mt-0.5">Click away to apply</p>
+                            </td>
+                          );
+                        }
+
                         return (
                           <td
-                            key={c}
-                            onClick={() => copy(text, key)}
-                            title="Click to copy"
+                            key={c.key}
+                            onClick={() => (isComment ? setEditing(key) : copy(text, key))}
+                            title={isComment ? "Click to edit" : "Click to copy"}
                             className={`border border-gray-200 px-2 py-1.5 align-top cursor-pointer transition-colors hover:bg-obsidian-50 ${
                               copiedKey === key ? "bg-green-50" : ""
-                            }`}
+                            } ${isComment ? "w-2/5" : ""}`}
                           >
-                            {copiedKey === key && (
-                              <span className="text-green-600 font-medium mr-1">✓ Copied</span>
-                            )}
+                            {copiedKey === key && <span className="text-green-600 font-medium mr-1">✓ Copied</span>}
                             {text}
                             {isComment && (
-                              <div className={`mt-1 font-mono text-[10px] ${over ? "text-red-600 font-bold" : "text-gray-400"}`}>
-                                {text.length}/{COMMENT_LIMIT}{over ? " — over limit" : ""}
+                              <div className="mt-1 flex items-center gap-2">
+                                <span className={`font-mono text-[10px] ${over ? "text-red-600 font-bold" : "text-gray-400"}`}>
+                                  {text.length}/{COMMENT_LIMIT}{over ? " — over limit" : ""}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); copy(text, `${key}-copy`); }}
+                                  className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+                                >
+                                  {copiedKey === `${key}-copy` ? "copied!" : "copy"}
+                                </button>
                               </div>
                             )}
                           </td>
                         );
                       })}
                       <td className="border border-gray-200 px-1 py-1.5 align-top">
-                        <button
-                          onClick={() => copy(row.map(stripMd).join("\t"), `row-${r}`)}
-                          title="Copy row (tab-separated)"
-                          className="text-gray-400 hover:text-gray-600 p-0.5"
-                        >
-                          {copiedKey === `row-${r}` ? (
-                            <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            onClick={() => copy(COLUMNS.map((c) => row[c.key] || "").join("\t"), `row-${r}`)}
+                            title="Copy row (tab-separated)"
+                            className="text-gray-400 hover:text-gray-600 p-0.5"
+                          >
+                            {copiedKey === `row-${r}` ? (
+                              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </button>
+                          {row.review && (
+                            <span title={row.reviewReason || "Classification uncertain"} className="text-amber-600 cursor-help">⚠</span>
                           )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {rows.some((r) => r.review && r.reviewReason) && !streaming && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-800">Classification notes from Claude:</p>
+                {rows.map((row, r) => row.review && row.reviewReason ? (
+                  <p key={r} className="text-xs text-amber-700">• <span className="font-medium">{row.title}</span>: {row.reviewReason}</p>
+                ) : null)}
+              </div>
+            )}
           </>
         )}
       </div>

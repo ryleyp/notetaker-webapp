@@ -405,7 +405,7 @@ List any cases where a newer source contradicts, reverses, or materially updates
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
-function buildCSMActivityPrompt(notes, today, accountName, allAccounts, range) {
+function buildCSMActivityPrompt(notes, today, accountName, allAccounts, range, resumeRows) {
   let rangeStart = range?.start ? new Date(range.start) : null;
   if (rangeStart && isNaN(rangeStart.getTime())) rangeStart = null;
   if (!rangeStart) {
@@ -435,20 +435,23 @@ CRITICAL ACCOUNT SCOPING RULES — these override everything else:
 - Report exclusively on **${acct}**. Do NOT include any activity that belongs to another customer account.
 - Some notes may mention other accounts or come from shared folders. Extract ONLY activities that involve ${acct}. Ignore everything else, even within the same note.
 - Never write a row about another account. If an activity does not involve ${acct}, skip it entirely.
-- Do not mention any other account name, alias, or keyword in any column.
+- Do not mention any other account name, alias, or keyword in any field.
 
-TASK: Identify all meaningful, reportable CSM activities from these sources and output an EA Engagement Activity Report as a Markdown table. Do NOT include routine emails, low-value check-ins, or any activity that wouldn't impress an executive reader. If two notes describe the same session, produce only one row — no duplicates.
+TASK: Identify all meaningful, reportable CSM activities from these sources and output an EA Engagement Activity Report. Do NOT include routine emails, low-value check-ins, or any activity that wouldn't impress an executive reader. If two notes describe the same session, produce only one activity — no duplicates.
+${resumeRows?.length ? `
+ALREADY REPORTED — a previous run already produced the activities below. Do NOT output them again. Continue with the remaining activities only:
+${resumeRows.map((r) => `- ${r.eventDate}: ${r.title}`).join("\n")}
+` : ""}
+OUTPUT FORMAT — output ONLY newline-delimited JSON (NDJSON): exactly one JSON object per line, one line per activity. No Markdown, no code fences, no intro or commentary, no blank lines between objects. Each line has exactly these keys:
 
-OUTPUT FORMAT — output ONLY this Markdown table, nothing else (no intro, no headings, no commentary):
+{"eventDate":"YYYY-MM-DD","title":"...","type":"...","subtype":"...","comments":"...","review":false,"reviewReason":""}
 
-| Event Date | Title | Type | Subtype | Comments |
-|------------|-------|------|---------|----------|
-
-Column rules:
-- **Event Date**: the date of the note this activity came from (YYYY-MM-DD format, taken from the ### heading of the source)
-- **Title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
-- **Type** and **Subtype**: must exactly match one option from the taxonomy below
-- **Comments**: max 800 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
+Field rules:
+- **eventDate**: the date of the note this activity came from (YYYY-MM-DD, taken from the ### heading of the source)
+- **title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
+- **type** and **subtype**: must exactly match one option from the taxonomy below
+- **comments**: max 800 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
+- **review**: set to true ONLY when you are genuinely unsure of the type/subtype classification (e.g. a session that could be either Demo Days or User Group), with a short reviewReason explaining the ambiguity. When confident, use false and an empty reviewReason.
 
 CLASSIFICATION PROCESS — for each activity, evaluate ALL 6 Type options before selecting. Do not stop at the first type that seems plausible:
 
@@ -608,7 +611,7 @@ function fitNotes(notes, model) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [], rangeStart, rangeEnd } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [], rangeStart, rangeEnd, resumeRows = [] } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -618,6 +621,12 @@ export async function POST(request) {
       ...n,
       title: applyReplacements(applyCorrections(n.title || "", corrections), replacements),
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
+    }));
+
+    // Resume rows come from the client with real names — sanitize like note content.
+    const sanitizedResumeRows = (resumeRows || []).slice(0, 200).map((r) => ({
+      eventDate: r?.eventDate || "",
+      title: applyReplacements(applyCorrections(r?.title || "", corrections), replacements),
     }));
 
     const scrubbedNotes = scrubWithExceptions(sanitizedNotes, accountName, allAccounts, restoredIds);
@@ -659,11 +668,13 @@ export async function POST(request) {
           const messageStream = client.messages.stream({
             model: resolvedModel,
             max_tokens: maxOutputTokens(resolvedModel),
-            system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
+            system: promptType === "csm-activity"
+              ? "You are an expert at synthesizing meeting notes into structured activity reports. Respond with only newline-delimited JSON objects — no preamble, no Markdown, no code fences."
+              : "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
             messages: [{
               role: "user",
               content: promptType === "csm-activity"
-                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts, { start: rangeStart, end: rangeEnd })
+                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts, { start: rangeStart, end: rangeEnd }, sanitizedResumeRows)
                 : productFocus
                 ? buildProductPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
                 : buildSynthesisPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts),
