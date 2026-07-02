@@ -5,7 +5,7 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { detectAccount } from "@/lib/accounts";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
-import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning, StrictToggle } from "@/components/ReportSections";
+import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning, StrictToggle, VerifyFindings } from "@/components/ReportSections";
 
 function threeMonthsAgoLabel() {
   const d = new Date();
@@ -150,7 +150,13 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             onReset={wf.handleReset}
             droppedCount={wf.droppedCount}
             restoredFromStorage={wf.restoredFromStorage}
+            history={wf.history}
+            onOpenHistory={wf.openHistoryItem}
+            onVerify={wf.handleVerifyReport}
+            verifying={wf.verifying}
+            verifyDisabled={!wf.activeNotes?.length}
           />
+          <VerifyFindings findings={wf.verifyFindings} />
           {wf.partial && wf.synthError && (
             <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{wf.synthError}</p>
           )}

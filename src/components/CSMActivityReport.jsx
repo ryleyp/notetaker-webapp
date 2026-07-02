@@ -314,6 +314,8 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
             onReset={wf.handleReset}
             droppedCount={wf.droppedCount}
             restoredFromStorage={wf.restoredFromStorage}
+            history={wf.history}
+            onOpenHistory={wf.openHistoryItem}
           />
           {wf.partial && !wf.synthesizing && (
             <div className="flex items-center justify-between gap-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

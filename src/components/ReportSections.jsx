@@ -160,7 +160,7 @@ export function PreflightPanel({ intro, notes, loadCounts, model, setModel, scru
   );
 }
 
-export function OutputHeader({ synthesizing, readyTitle, onReset, droppedCount, restoredFromStorage }) {
+export function OutputHeader({ synthesizing, readyTitle, onReset, droppedCount, restoredFromStorage, history, onOpenHistory, onVerify, verifying, verifyDisabled }) {
   return (
     <>
       <div className="flex items-center justify-between">
@@ -173,7 +173,22 @@ export function OutputHeader({ synthesizing, readyTitle, onReset, droppedCount, 
             <span className="text-xs text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">restored from last session</span>
           )}
         </div>
-        {!synthesizing && <button onClick={onReset} className="btn-secondary">Start Over</button>}
+        {!synthesizing && (
+          <div className="flex items-center gap-2">
+            {onVerify && (
+              <button
+                onClick={onVerify}
+                disabled={verifying || verifyDisabled}
+                title={verifyDisabled ? "Re-scan the folder first — verification needs the source notes loaded" : "Second-pass audit: a fast model checks the report against the scanned sources for misattributed or unsupported claims"}
+                className="btn-secondary text-xs px-3 py-1.5"
+              >
+                {verifying ? "Verifying…" : "Verify vs sources"}
+              </button>
+            )}
+            {history && onOpenHistory && <HistoryMenu history={history} onOpen={onOpenHistory} />}
+            <button onClick={onReset} className="btn-secondary">Start Over</button>
+          </div>
+        )}
       </div>
       {droppedCount > 0 && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -181,6 +196,33 @@ export function OutputHeader({ synthesizing, readyTitle, onReset, droppedCount, 
         </p>
       )}
     </>
+  );
+}
+
+// Results of the report-level source audit. null = not run; [] = clean.
+export function VerifyFindings({ findings }) {
+  if (findings === null || findings === undefined) return null;
+  if (!findings.length) {
+    return (
+      <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+        ✓ Verification passed — no misattributed, unsupported, or contradicted claims found.
+      </p>
+    );
+  }
+  const label = { misattributed: "Misattributed", unsupported: "Unsupported", contradiction: "Contradicts sources" };
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+      <p className="text-xs font-semibold text-red-800">
+        ⚠ Verification found {findings.length} issue{findings.length !== 1 ? "s" : ""} — review before saving or filing:
+      </p>
+      {findings.map((f, i) => (
+        <div key={i} className="text-xs text-red-700">
+          <span className="font-medium">[{label[f.problem] || f.problem}]</span>{" "}
+          {f.quote && <em>"{f.quote}"</em>}
+          {f.reason && <span className="text-red-600"> — {f.reason}</span>}
+        </div>
+      ))}
+    </div>
   );
 }
 

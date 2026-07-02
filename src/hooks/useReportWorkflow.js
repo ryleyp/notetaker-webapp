@@ -49,6 +49,8 @@ export function useReportWorkflow({
   const [output, setOutput] = useState("");
   const [partial, setPartial] = useState(false);
   const [redactedCount, setRedactedCount] = useState(0);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyFindings, setVerifyFindings] = useState(null); // null = not run, [] = clean
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -210,6 +212,7 @@ export function useReportWorkflow({
       setDroppedCount(0);
       setRedactedCount(0);
     }
+    setVerifyFindings(null);
 
     const reps = settings.replacements || [];
     let accumulated = opts.append ? rawRef.current + "\n" : "";
@@ -289,6 +292,44 @@ export function useReportWorkflow({
     }
   }
 
+  // Second-pass audit of the generated Markdown report against the scanned
+  // sources (misattributed / unsupported / contradicted claims). Requires
+  // the notes to still be loaded — after a refresh, re-scan first.
+  async function handleVerifyReport() {
+    if (!output || !activeNotes?.length) return;
+    setVerifying(true);
+    try {
+      const acct = acctCtx();
+      const reps = settings.replacements || [];
+      const res = await fetch("/api/verify-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          report: output,
+          notes: activeNotes,
+          accountName: acct.name,
+          allAccounts: settings.accounts || [],
+          replacements: reps,
+          corrections: settings.corrections || [],
+          restoredIds: [...restoredIds],
+          apiKey: settings.apiKey || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed");
+      const findings = (data.findings || []).map((f) => ({
+        ...f,
+        quote: reps.length ? reverseReplacements(f.quote || "", reps) : f.quote,
+        reason: reps.length ? reverseReplacements(f.reason || "", reps) : f.reason,
+      }));
+      setVerifyFindings(findings);
+    } catch (e) {
+      alert(`Verification failed: ${e.message}`);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   async function handleSave(contentOverride) {
     const content = contentOverride ?? output;
     if (!content || !settings.vaultPath) return;
@@ -334,6 +375,7 @@ export function useReportWorkflow({
     setSynthError(null);
     setSynthCost(null);
     setRedactedCount(0);
+    setVerifyFindings(null);
     setRestoredFromStorage(false);
   }
 
@@ -348,6 +390,7 @@ export function useReportWorkflow({
     setLoadError(null);
     setSynthCost(null);
     setRedactedCount(0);
+    setVerifyFindings(null);
     setRestoredIds(new Set());
     setScrubOpen(false);
     setRestoredFromStorage(false);
@@ -360,6 +403,7 @@ export function useReportWorkflow({
     strictFolderOnly, setStrictFolderOnly, loadCounts, loadError, loading, extras,
     showConfirm, setShowConfirm,
     synthesizing, synthError, output, setOutput, partial, redactedCount,
+    verifying, verifyFindings, handleVerifyReport,
     saving, saved, savedPath, synthCost, droppedCount,
     scrubReport, restoredIds, setRestoredIds, scrubOpen, setScrubOpen,
     model, setModel,
