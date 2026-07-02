@@ -156,6 +156,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             accountName={detectAccount(wf.selectedFolder, settings.accounts).name}
             allAccounts={settings.accounts || []}
             streaming={wf.synthesizing}
+            redactedCount={wf.redactedCount}
           />
           {wf.output && (
             <NotesPreview

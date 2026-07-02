@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { detectAccount } from "@/lib/accounts";
-import { buildScrubReport } from "@/lib/scrub";
+import { buildScrubReport, redactForbiddenTerms } from "@/lib/scrub";
 import { reverseReplacements } from "@/lib/sanitize";
 import { calcCost } from "@/lib/pricing";
 
@@ -45,6 +45,7 @@ export function useReportWorkflow({
   const [synthError, setSynthError] = useState(null);
   const [output, setOutput] = useState("");
   const [partial, setPartial] = useState(false);
+  const [redactedCount, setRedactedCount] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -173,13 +174,23 @@ export function useReportWorkflow({
       rawRef.current = "";
       setOutput("");
       setDroppedCount(0);
+      setRedactedCount(0);
     }
 
     const reps = settings.replacements || [];
     let accumulated = opts.append ? rawRef.current + "\n" : "";
+    const acct = acctCtx();
+
+    // Reverse pseudonyms, then hard-redact any other-account terms Claude
+    // still produced — a report must never show another account's name.
+    const finalize = (text) => {
+      const reversed = reps.length ? reverseReplacements(text, reps) : text;
+      const red = redactForbiddenTerms(reversed, acct.name, settings.accounts || []);
+      setRedactedCount(red.count);
+      return red.text;
+    };
 
     try {
-      const acct = acctCtx();
       const res = await fetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,9 +230,10 @@ export function useReportWorkflow({
           if (evt.type === "delta") {
             accumulated += evt.text;
             rawRef.current = accumulated;
-            setOutput(accumulated);
+            // Redact live too, so another account's name never even flashes.
+            setOutput(redactForbiddenTerms(accumulated, acct.name, settings.accounts || []).text);
           } else if (evt.type === "done") {
-            setOutput(reps.length ? reverseReplacements(accumulated, reps) : accumulated);
+            setOutput(finalize(accumulated));
             if (evt.usage) setSynthCost(calcCost(evt.usage, evt.model));
             if (evt.droppedCount) setDroppedCount(evt.droppedCount);
           } else if (evt.type === "error") {
@@ -233,7 +245,7 @@ export function useReportWorkflow({
       // Keep whatever streamed before the failure — it was paid for.
       if (accumulated.trim()) {
         setPartial(true);
-        setOutput(reps.length ? reverseReplacements(accumulated, reps) : accumulated);
+        setOutput(finalize(accumulated));
         setSynthError(`${e.message} — partial output kept below.`);
       } else {
         setSynthError(e.message);
@@ -287,6 +299,7 @@ export function useReportWorkflow({
     setPartial(false);
     setSynthError(null);
     setSynthCost(null);
+    setRedactedCount(0);
     setRestoredFromStorage(false);
   }
 
@@ -300,6 +313,7 @@ export function useReportWorkflow({
     setSynthError(null);
     setLoadError(null);
     setSynthCost(null);
+    setRedactedCount(0);
     setRestoredIds(new Set());
     setScrubOpen(false);
     setRestoredFromStorage(false);
@@ -310,7 +324,7 @@ export function useReportWorkflow({
     selectedFolder, selectFolder,
     rawNotes, loadedNotes, loadCounts, loadError, loading, extras,
     showConfirm, setShowConfirm,
-    synthesizing, synthError, output, setOutput, partial,
+    synthesizing, synthError, output, setOutput, partial, redactedCount,
     saving, saved, savedPath, synthCost, droppedCount,
     scrubReport, restoredIds, setRestoredIds, scrubOpen, setScrubOpen,
     model, setModel,

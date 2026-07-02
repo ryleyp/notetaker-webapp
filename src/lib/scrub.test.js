@@ -5,6 +5,7 @@ import {
   buildScrubReport,
   scrubWithExceptions,
   findAccountBleed,
+  redactForbiddenTerms,
 } from "@/lib/scrub";
 
 const ACCOUNTS = [
@@ -113,6 +114,41 @@ describe("account name/alias bleed protection", () => {
     const notes = [note("a.md", "L3Harris renewal is on track")];
     const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
     expect(scrubbed.content).toBe("L3Harris renewal is on track");
+  });
+});
+
+describe("redactForbiddenTerms", () => {
+  it("replaces other-account names, aliases, and keywords case-insensitively", () => {
+    const { text, count } = redactForbiddenTerms(
+      "Met with L3Harris and LOCKHEED about MFC testing",
+      "Northrop Grumman",
+      ACCOUNTS
+    );
+    expect(text).toBe("Met with █████ and █████ about █████ testing");
+    expect(count).toBe(3);
+  });
+
+  it("leaves the current account's own terms intact", () => {
+    const { text, count } = redactForbiddenTerms("Northrop Grumman NGC update", "Northrop Grumman", ACCOUNTS);
+    expect(text).toBe("Northrop Grumman NGC update");
+    expect(count).toBe(0);
+  });
+
+  it("does not redact terms embedded inside larger words", () => {
+    const { text } = redactForbiddenTerms("the engcomputer lab", "L3Harris", ACCOUNTS);
+    expect(text).toBe("the engcomputer lab");
+  });
+
+  it("is a no-op for Internal reports", () => {
+    const { text, count } = redactForbiddenTerms("L3Harris and lockheed", "Internal", ACCOUNTS);
+    expect(text).toBe("L3Harris and lockheed");
+    expect(count).toBe(0);
+  });
+
+  it("scrubWithExceptions redacts other-account terms from note titles", () => {
+    const notes = [note("2026-04-01 - NGC and L3 Review.md", "safe content", { title: "NGC and L3Harris Review" })];
+    const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
+    expect(scrubbed.title).toBe("█████ and L3Harris Review");
   });
 });
 

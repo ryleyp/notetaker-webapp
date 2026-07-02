@@ -140,28 +140,41 @@ export function OutputHeader({ synthesizing, readyTitle, onReset, droppedCount, 
   );
 }
 
-// Post-generation check: warn if the output still mentions terms tied to
-// other accounts (name, alias, or keyword). Last line of defense after the
-// pre-send scrub.
-export function BleedWarning({ output, accountName, allAccounts, streaming }) {
+// Post-generation account isolation status. Generated output is hard-redacted
+// by the workflow hook; this reports how much was redacted, and — as a
+// failsafe for content that bypassed redaction (e.g. reports saved before
+// redaction existed and reopened from history) — warns if other-account terms
+// are still present.
+export function BleedWarning({ output, accountName, allAccounts, streaming, redactedCount = 0 }) {
   const hits = useMemo(
     () => (streaming ? [] : findAccountBleed(output, accountName, allAccounts)),
     [output, accountName, allAccounts, streaming]
   );
-  if (!hits.length) return null;
+  if (streaming || (!hits.length && !redactedCount)) return null;
   return (
-    <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 space-y-1">
-      <p className="text-xs font-semibold text-red-800">
-        ⚠ Account bleed detected — this report mentions terms tied to other accounts:
-      </p>
-      {hits.map((h) => (
-        <p key={h.account} className="text-xs text-red-700">
-          • <span className="font-medium">{h.account}</span>: {h.terms.join(", ")}
-        </p>
-      ))}
-      <p className="text-xs text-red-600">
-        Review before pasting into Salesforce. Edit the offending rows/sections, or regenerate.
-      </p>
+    <div className="space-y-2">
+      {redactedCount > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+          <p className="text-xs text-blue-700">
+            🔒 {redactedCount} mention{redactedCount !== 1 ? "s" : ""} of other accounts {redactedCount !== 1 ? "were" : "was"} automatically redacted (shown as █████). Consider deleting those rows/sections before filing.
+          </p>
+        </div>
+      )}
+      {hits.length > 0 && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 space-y-1">
+          <p className="text-xs font-semibold text-red-800">
+            ⚠ Account bleed detected — this report mentions terms tied to other accounts:
+          </p>
+          {hits.map((h) => (
+            <p key={h.account} className="text-xs text-red-700">
+              • <span className="font-medium">{h.account}</span>: {h.terms.join(", ")}
+            </p>
+          ))}
+          <p className="text-xs text-red-600">
+            Review before pasting into Salesforce. Edit the offending rows/sections, or regenerate.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
