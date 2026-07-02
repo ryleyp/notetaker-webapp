@@ -3,8 +3,9 @@
 import { useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
+import { detectAccount } from "@/lib/accounts";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
-import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, Spinner } from "@/components/ReportSections";
+import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning } from "@/components/ReportSections";
 
 function threeMonthsAgoLabel() {
   const d = new Date();
@@ -150,6 +151,12 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           {wf.partial && wf.synthError && (
             <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{wf.synthError}</p>
           )}
+          <BleedWarning
+            output={wf.output}
+            accountName={detectAccount(wf.selectedFolder, settings.accounts).name}
+            allAccounts={settings.accounts || []}
+            streaming={wf.synthesizing}
+          />
           {wf.output && (
             <NotesPreview
               notes={wf.output}

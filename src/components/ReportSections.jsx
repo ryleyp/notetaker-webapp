@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ScrubPanel from "@/components/ScrubPanel";
 import ModelPicker from "@/components/ModelPicker";
 import { contextLimit, estimateUsage } from "@/lib/pricing";
+import { findAccountBleed } from "@/lib/scrub";
 
 export function Spinner({ className = "w-4 h-4" }) {
   return (
@@ -136,6 +137,32 @@ export function OutputHeader({ synthesizing, readyTitle, onReset, droppedCount, 
         </p>
       )}
     </>
+  );
+}
+
+// Post-generation check: warn if the output still mentions terms tied to
+// other accounts (name, alias, or keyword). Last line of defense after the
+// pre-send scrub.
+export function BleedWarning({ output, accountName, allAccounts, streaming }) {
+  const hits = useMemo(
+    () => (streaming ? [] : findAccountBleed(output, accountName, allAccounts)),
+    [output, accountName, allAccounts, streaming]
+  );
+  if (!hits.length) return null;
+  return (
+    <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 space-y-1">
+      <p className="text-xs font-semibold text-red-800">
+        ⚠ Account bleed detected — this report mentions terms tied to other accounts:
+      </p>
+      {hits.map((h) => (
+        <p key={h.account} className="text-xs text-red-700">
+          • <span className="font-medium">{h.account}</span>: {h.terms.join(", ")}
+        </p>
+      ))}
+      <p className="text-xs text-red-600">
+        Review before pasting into Salesforce. Edit the offending rows/sections, or regenerate.
+      </p>
+    </div>
   );
 }
 

@@ -4,14 +4,15 @@ import {
   getForbiddenKeywords,
   buildScrubReport,
   scrubWithExceptions,
+  findAccountBleed,
 } from "@/lib/scrub";
 
 const ACCOUNTS = [
-  { name: "Lockheed Martin", keywords: ["MFC", "PAC-3"] },
-  { name: "L3Harris", keywords: ["WESCAM"] },
-  { name: "Northrop Grumman", keywords: ["NGC", "B-21"] },
-  { name: "Internal", keywords: ["standup"] },
-  { name: "Frontgrade", keywords: [] },
+  { name: "Lockheed Martin", aliases: ["lockheed", "lmco"], keywords: ["MFC", "PAC-3"] },
+  { name: "L3Harris", aliases: ["l3harris", "l3 harris"], keywords: ["WESCAM"] },
+  { name: "Northrop Grumman", aliases: ["northrop", "ngc"], keywords: ["B-21"] },
+  { name: "Internal", aliases: [], keywords: ["standup"] },
+  { name: "Frontgrade", aliases: ["frontgrade"], keywords: [] },
 ];
 
 function note(filename, content, extra = {}) {
@@ -51,7 +52,7 @@ describe("getForbiddenKeywords", () => {
   it("collects keywords from all other accounts", () => {
     const kws = getForbiddenKeywords("L3Harris", ACCOUNTS);
     expect(kws).toContain("MFC");
-    expect(kws).toContain("NGC");
+    expect(kws).toContain("ngc");
     expect(kws).toContain("B-21");
   });
 
@@ -68,6 +69,74 @@ describe("getForbiddenKeywords", () => {
   it("returns empty for missing account list", () => {
     expect(getForbiddenKeywords("L3Harris", undefined)).toEqual([]);
     expect(getForbiddenKeywords("L3Harris", [])).toEqual([]);
+  });
+
+  it("includes other accounts' names and aliases, not just keywords", () => {
+    const kws = getForbiddenKeywords("Northrop Grumman", ACCOUNTS);
+    expect(kws).toContain("L3Harris");
+    expect(kws).toContain("l3 harris");
+    expect(kws).toContain("Lockheed Martin");
+    expect(kws).toContain("lockheed");
+  });
+
+  it("scrubs nothing for Internal reports (they legitimately span accounts)", () => {
+    expect(getForbiddenKeywords("Internal", ACCOUNTS)).toEqual([]);
+    expect(getForbiddenKeywords("", ACCOUNTS)).toEqual([]);
+  });
+
+  it("never forbids a term the current account also claims (alias collision)", () => {
+    const shared = [
+      { name: "Alpha", aliases: ["harris"], keywords: [] },
+      { name: "Beta", aliases: ["harris", "beta"], keywords: [] },
+    ];
+    const kws = getForbiddenKeywords("Alpha", shared);
+    expect(kws).not.toContain("harris");
+    expect(kws).toContain("beta");
+  });
+});
+
+describe("account name/alias bleed protection", () => {
+  it("flags a line naming another account even with no keyword match", () => {
+    const notes = [note("a.md", "Good quarter\nL3Harris asked about licensing terms\nAll set")];
+    const report = buildScrubReport(notes, "Northrop Grumman", ACCOUNTS);
+    expect(report).toHaveLength(1);
+    expect(report[0].line).toContain("L3Harris");
+  });
+
+  it("scrubs lines mentioning another account's alias", () => {
+    const notes = [note("a.md", "keep\nlockheed folks joined the call\nkeep too")];
+    const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe("keep\nkeep too");
+  });
+
+  it("does not scrub the current account's own name from its own report", () => {
+    const notes = [note("a.md", "L3Harris renewal is on track")];
+    const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe("L3Harris renewal is on track");
+  });
+});
+
+describe("findAccountBleed", () => {
+  it("reports terms from other accounts found in output text", () => {
+    const output = "| 2026-04-01 | Sync | ... | CSM met with L3Harris and lockheed teams |";
+    const hits = findAccountBleed(output, "Northrop Grumman", ACCOUNTS);
+    expect(hits.map((h) => h.account).sort()).toEqual(["L3Harris", "Lockheed Martin"]);
+    expect(hits.find((h) => h.account === "L3Harris").terms).toContain("L3Harris");
+  });
+
+  it("returns empty when output only mentions the current account", () => {
+    const output = "Northrop Grumman NGC northrop all good";
+    expect(findAccountBleed(output, "Northrop Grumman", ACCOUNTS)).toEqual([]);
+  });
+
+  it("does not false-positive on words containing an alias", () => {
+    const output = "the engcomputer lab expansion";
+    expect(findAccountBleed(output, "L3Harris", ACCOUNTS)).toEqual([]);
+  });
+
+  it("returns empty for Internal or blank inputs", () => {
+    expect(findAccountBleed("L3Harris stuff", "Internal", ACCOUNTS)).toEqual([]);
+    expect(findAccountBleed("", "Northrop Grumman", ACCOUNTS)).toEqual([]);
   });
 });
 

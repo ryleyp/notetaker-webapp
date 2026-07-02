@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import ActivityPreview from "@/components/ActivityPreview";
+import { detectAccount } from "@/lib/accounts";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
-import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu } from "@/components/ReportSections";
+import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning } from "@/components/ReportSections";
 import { parseActivityRows, rowsToNDJSON, rowsToMarkdown } from "@/lib/activityRows";
 
 function toISO(d) {
@@ -228,6 +229,12 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
               )}
             </div>
           )}
+          <BleedWarning
+            output={wf.output}
+            accountName={detectAccount(wf.selectedFolder, settings.accounts).name}
+            allAccounts={settings.accounts || []}
+            streaming={wf.synthesizing}
+          />
           {wf.output && (
             <ActivityPreview
               rows={rows}

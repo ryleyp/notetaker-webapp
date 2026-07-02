@@ -13,11 +13,48 @@ export function lineContainsKeyword(line, keywords) {
   });
 }
 
+// Every term tied to another account: its name, aliases, AND keywords.
+// Scrubbing only keywords let lines like "L3Harris asked about X" bleed into
+// other accounts' reports. Internal reports legitimately span accounts, so
+// nothing is scrubbed there.
 export function getForbiddenKeywords(accountName, allAccounts) {
+  if (!accountName || accountName === "Internal") return [];
+  const own = new Set(
+    (allAccounts || [])
+      .filter((a) => a.name === accountName)
+      .flatMap((a) => [a.name, ...(a.aliases || []), ...(a.keywords || [])])
+      .filter(Boolean)
+      .map((t) => t.toLowerCase())
+  );
   return (allAccounts || [])
     .filter((a) => a.name !== accountName && a.name !== "Internal")
-    .flatMap((a) => a.keywords || [])
-    .filter(Boolean);
+    .flatMap((a) => [a.name, ...(a.aliases || []), ...(a.keywords || [])])
+    .filter(Boolean)
+    // Never scrub a term the current account also claims (alias collisions).
+    .filter((t) => !own.has(t.toLowerCase()));
+}
+
+// Scan generated output for terms tied to other accounts. Returns the unique
+// offending terms grouped by account, for a post-generation warning.
+export function findAccountBleed(text, accountName, allAccounts) {
+  if (!text || !accountName || accountName === "Internal") return [];
+  const own = new Set(
+    (allAccounts || [])
+      .filter((a) => a.name === accountName)
+      .flatMap((a) => [a.name, ...(a.aliases || []), ...(a.keywords || [])])
+      .filter(Boolean)
+      .map((t) => t.toLowerCase())
+  );
+  const hits = [];
+  for (const a of allAccounts || []) {
+    if (a.name === accountName || a.name === "Internal") continue;
+    const terms = [a.name, ...(a.aliases || []), ...(a.keywords || [])]
+      .filter(Boolean)
+      .filter((t) => !own.has(t.toLowerCase()))
+      .filter((t) => lineContainsKeyword(text, [t]));
+    if (terms.length) hits.push({ account: a.name, terms });
+  }
+  return hits;
 }
 
 // Returns list of lines that would be scrubbed, with stable IDs.
