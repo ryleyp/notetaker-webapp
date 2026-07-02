@@ -166,6 +166,11 @@
 /* Status colors — teal */
 .dark .text-teal-600 { color: #2dd4bf; }
 
+/* Obsidian (brand teal) tints */
+.dark .bg-obsidian-50 { background-color: rgba(6, 148, 148, 0.15); }
+.dark .hover\:bg-obsidian-50:hover { background-color: rgba(6, 148, 148, 0.18); }
+.dark .text-obsidian-700 { color: #2bb8b8; }
+
 /* Hover variants */
 .dark .hover\:bg-gray-50:hover { background-color: #2f2f37; }
 .dark .hover\:bg-gray-100:hover { background-color: #34343d; }

@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
-import NotesPreview from "@/components/NotesPreview";
+import ActivityPreview from "@/components/ActivityPreview";
 import { calcCost } from "@/lib/pricing";
 import { detectAccount } from "@/lib/accounts";
 import { reverseReplacements } from "@/lib/sanitize";
 import { buildScrubReport } from "@/lib/scrub";
+import ScrubPanel from "@/components/ScrubPanel";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -25,12 +26,37 @@ function contextLimit(model) {
   return MODEL_CONTEXT[model] || 200_000;
 }
 
-const RANGE_MONTHS = 4;
+function toISO(d) {
+  return d.toISOString().split("T")[0];
+}
 
-function rangeStartLabel() {
+function defaultRangeStart() {
   const d = new Date();
-  d.setMonth(d.getMonth() - RANGE_MONTHS);
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  d.setMonth(d.getMonth() - 4);
+  return toISO(d);
+}
+
+// Current calendar quarter plus the three before it, newest first.
+function quarterPresets() {
+  const now = new Date();
+  let year = now.getFullYear();
+  let q = Math.floor(now.getMonth() / 3); // 0-indexed quarter
+  const presets = [];
+  for (let i = 0; i < 4; i++) {
+    presets.push({
+      label: `Q${q + 1} ${year}`,
+      start: toISO(new Date(year, q * 3, 1)),
+      end: toISO(new Date(year, q * 3 + 3, 0)),
+    });
+    q--;
+    if (q < 0) { q = 3; year--; }
+  }
+  return presets;
+}
+
+function prettyDate(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
 function estimateUsage(notes, model) {
@@ -66,6 +92,19 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
   const [isThinking, setIsThinking] = useState(false);
 
   const [model, setModel] = useState(settings.model || "claude-haiku-4-5");
+  const [rangeStart, setRangeStart] = useState(defaultRangeStart());
+  const [rangeEnd, setRangeEnd] = useState(TODAY);
+
+  function handleRangeChange(start, end) {
+    setRangeStart(start);
+    setRangeEnd(end);
+    // Loaded notes were fetched for the old range — force a re-scan.
+    setLoadedNotes(null);
+    setLoadCounts(null);
+    setShowConfirm(false);
+    setScrubReport([]);
+    setRestoredIds(new Set());
+  }
 
   async function handleLoadNotes() {
     if (!settings.vaultPath) return;
@@ -82,7 +121,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
 
     try {
       const { name: accountName, aliases } = detectAccount(selectedFolder, settings.accounts);
-      const params = new URLSearchParams({ vaultPath: settings.vaultPath, months: String(RANGE_MONTHS) });
+      const params = new URLSearchParams({ vaultPath: settings.vaultPath, startDate: rangeStart, endDate: rangeEnd });
       if (selectedFolder) params.set("folderPath", selectedFolder);
       if (aliases?.length) params.set("accountAliases", aliases.join(","));
 
@@ -125,6 +164,8 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
           accountName: detectAccount(selectedFolder, settings.accounts).name,
           allAccounts: settings.accounts || [],
           restoredIds: [...restoredIds],
+          rangeStart,
+          rangeEnd,
         }),
       });
 
@@ -224,22 +265,71 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
         <div className="card p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-semibold text-gray-900 mb-1">EA Activity Report — Past 4 Months</h3>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">EA Activity Report</h3>
               <p className="text-sm text-gray-500">
                 Scanning <span className="font-medium text-gray-700">{folderLabel}</span> for notes dated{" "}
-                <span className="font-medium text-gray-700">{rangeStartLabel()}</span> or later, then generating a CSM activity table.
+                <span className="font-medium text-gray-700">{prettyDate(rangeStart)}</span> through{" "}
+                <span className="font-medium text-gray-700">{prettyDate(rangeEnd)}</span>, then generating a CSM activity table.
               </p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={rangeStart}
+                  max={rangeEnd}
+                  onChange={(e) => handleRangeChange(e.target.value, rangeEnd)}
+                  className="input !w-auto text-xs py-1.5"
+                />
+                <span className="text-xs text-gray-400">to</span>
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  min={rangeStart}
+                  onChange={(e) => handleRangeChange(rangeStart, e.target.value)}
+                  className="input !w-auto text-xs py-1.5"
+                />
+                <div className="flex gap-1.5 flex-wrap">
+                  {quarterPresets().map((p) => {
+                    const active = rangeStart === p.start && rangeEnd === p.end;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => handleRangeChange(p.start, p.end)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          active
+                            ? "bg-obsidian-600 text-white border-obsidian-600"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => handleRangeChange(defaultRangeStart(), TODAY)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      rangeStart === defaultRangeStart() && rangeEnd === TODAY
+                        ? "bg-obsidian-600 text-white border-obsidian-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    Last 4 months
+                  </button>
+                </div>
+              </div>
 
               {loadedNotes !== null && (
                 <div className="mt-3">
                   {loadedNotes.length === 0 ? (
                     <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200 inline-block">
-                      No notes with dates in the past 4 months found in this folder.
+                      No notes found in this folder for the selected date range.
                     </p>
                   ) : (
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-green-700">
-                        Found {loadedNotes.length} note{loadedNotes.length !== 1 ? "s" : ""} in the past 4 months
+                        Found {loadedNotes.length} note{loadedNotes.length !== 1 ? "s" : ""} in the selected range
                       </p>
                       {loadCounts && (
                         <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
@@ -285,53 +375,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
 
           {loadedNotes?.length > 0 && !showConfirm && (
             <div className="mt-5 pt-5 border-t border-gray-100">
-              {scrubReport.length > 0 && (
-                <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 overflow-hidden">
-                  <button
-                    onClick={() => setScrubOpen((v) => !v)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs text-orange-800 hover:bg-orange-100 transition-colors"
-                  >
-                    <span>
-                      {restoredIds.size > 0
-                        ? `${scrubReport.length - restoredIds.size} of ${scrubReport.length} flagged line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed`
-                        : `${scrubReport.length} line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed (keyword filter)`}
-                    </span>
-                    <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${scrubOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                  {scrubOpen && (
-                    <ul className="divide-y divide-orange-100 max-h-52 overflow-y-auto">
-                      {scrubReport.map((item) => (
-                        <li key={item.id} className="flex gap-2 items-start px-3 py-1.5">
-                          <input
-                            type="checkbox"
-                            id={`csm-pre-${item.id}`}
-                            checked={restoredIds.has(item.id)}
-                            onChange={(e) => {
-                              const next = new Set(restoredIds);
-                              if (e.target.checked) next.add(item.id);
-                              else next.delete(item.id);
-                              setRestoredIds(next);
-                            }}
-                            className="mt-0.5 flex-shrink-0 accent-orange-600"
-                          />
-                          <label htmlFor={`csm-pre-${item.id}`} className="text-xs cursor-pointer leading-relaxed">
-                            <span className="font-mono text-orange-500 mr-1">{item.noteDate}</span>
-                            <span className="text-orange-700 mr-1 font-medium">{item.noteTitle} —</span>
-                            <span className="text-gray-700">{item.line.trim()}</span>
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {scrubOpen && (
-                    <p className="px-3 py-1.5 text-xs text-orange-600 border-t border-orange-100">
-                      Check a line to keep it — unchecked lines are removed before sending to Claude.
-                    </p>
-                  )}
-                </div>
-              )}
+              <ScrubPanel scrubReport={scrubReport} restoredIds={restoredIds} setRestoredIds={setRestoredIds} open={scrubOpen} setOpen={setScrubOpen} idPrefix="csm-pre-" className="mb-4" />
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-xs text-gray-500 font-medium">Model</span>
                 <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden">
@@ -421,53 +465,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
                     Names in your glossary are replaced before sending. The table will reference your account correctly.
                   </p>
                 </div>
-                {scrubReport.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 overflow-hidden">
-                    <button
-                      onClick={() => setScrubOpen((v) => !v)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-xs text-orange-800 hover:bg-orange-100 transition-colors"
-                    >
-                      <span>
-                        {restoredIds.size > 0
-                          ? `${scrubReport.length - restoredIds.size} of ${scrubReport.length} flagged line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed`
-                          : `${scrubReport.length} line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed (keyword filter)`}
-                      </span>
-                      <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${scrubOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                    {scrubOpen && (
-                      <ul className="divide-y divide-orange-100 max-h-52 overflow-y-auto">
-                        {scrubReport.map((item) => (
-                          <li key={item.id} className="flex gap-2 items-start px-3 py-1.5">
-                            <input
-                              type="checkbox"
-                              id={`csm-${item.id}`}
-                              checked={restoredIds.has(item.id)}
-                              onChange={(e) => {
-                                const next = new Set(restoredIds);
-                                if (e.target.checked) next.add(item.id);
-                                else next.delete(item.id);
-                                setRestoredIds(next);
-                              }}
-                              className="mt-0.5 flex-shrink-0 accent-orange-600"
-                            />
-                            <label htmlFor={`csm-${item.id}`} className="text-xs cursor-pointer leading-relaxed">
-                              <span className="font-mono text-orange-500 mr-1">{item.noteDate}</span>
-                              <span className="text-orange-700 mr-1 font-medium">{item.noteTitle} —</span>
-                              <span className="text-gray-700">{item.line.trim()}</span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {scrubOpen && (
-                      <p className="px-3 py-1.5 text-xs text-orange-600 border-t border-orange-100">
-                        Check a line to keep it — unchecked lines are removed before sending to Claude.
-                      </p>
-                    )}
-                  </div>
-                )}
+                <ScrubPanel scrubReport={scrubReport} restoredIds={restoredIds} setRestoredIds={setRestoredIds} open={scrubOpen} setOpen={setScrubOpen} idPrefix="csm-" className="mt-3" />
                 <div className="flex gap-3 mt-3">
                   <button onClick={() => setShowConfirm(false)} className="btn-secondary flex-1">Cancel</button>
                   <button onClick={handleSynthesize} disabled={synthesizing} className="btn-primary flex-1 py-3">
@@ -510,7 +508,7 @@ export default function CSMActivityReport({ settings, onSettingsClick }) {
             </p>
           )}
           {output && (
-            <NotesPreview
+            <ActivityPreview
               notes={output}
               onSave={handleSave}
               saving={saving}

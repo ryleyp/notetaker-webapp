@@ -405,10 +405,18 @@ List any cases where a newer source contradicts, reverses, or materially updates
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
-function buildCSMActivityPrompt(notes, today, accountName, allAccounts) {
-  const rangeStart = new Date(today);
-  rangeStart.setMonth(rangeStart.getMonth() - 4);
-  const rangeLabel = `${rangeStart.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} – ${new Date(today).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+function buildCSMActivityPrompt(notes, today, accountName, allAccounts, range) {
+  let rangeStart = range?.start ? new Date(range.start) : null;
+  if (rangeStart && isNaN(rangeStart.getTime())) rangeStart = null;
+  if (!rangeStart) {
+    rangeStart = new Date(today);
+    rangeStart.setMonth(rangeStart.getMonth() - 4);
+  }
+  let rangeEnd = range?.end ? new Date(range.end) : null;
+  if (rangeEnd && isNaN(rangeEnd.getTime())) rangeEnd = null;
+  if (!rangeEnd) rangeEnd = new Date(today);
+  const fmt = (d) => d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const rangeLabel = `${fmt(rangeStart)} – ${fmt(rangeEnd)}`;
 
   const acct = accountName && accountName !== "Internal" ? accountName : "this account";
 
@@ -421,7 +429,7 @@ function buildCSMActivityPrompt(notes, today, accountName, allAccounts) {
 
   const exclusion = buildExclusionList(acct, allAccounts);
 
-  return `You are a NI Software Customer Success Manager creating an EA Engagement Activity Report for **${acct}** based on ${notes.length} meeting notes and transcripts from the past 4 months (${rangeLabel}).
+  return `You are a NI Software Customer Success Manager creating an EA Engagement Activity Report for **${acct}** based on ${notes.length} meeting notes and transcripts from the reporting period ${rangeLabel}.
 ${exclusion ? `\n${exclusion}` : ""}
 CRITICAL ACCOUNT SCOPING RULES — these override everything else:
 - Report exclusively on **${acct}**. Do NOT include any activity that belongs to another customer account.
@@ -600,7 +608,7 @@ function fitNotes(notes, model) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [] } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [], rangeStart, rangeEnd } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -655,7 +663,7 @@ export async function POST(request) {
             messages: [{
               role: "user",
               content: promptType === "csm-activity"
-                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts)
+                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts, { start: rangeStart, end: rangeEnd })
                 : productFocus
                 ? buildProductPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
                 : buildSynthesisPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts),

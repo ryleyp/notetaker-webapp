@@ -30,7 +30,8 @@ function readFolder(dir, cutoff, source, sourceLabel) {
     try { content = fs.readFileSync(filePath, "utf-8"); } catch { continue; }
 
     const date = parseDateFromFilename(entry.name) || parseDateFromContent(content);
-    if (!date || date < cutoff) continue;
+    if (!date || date < cutoff.start) continue;
+    if (cutoff.end && date > cutoff.end) continue;
 
     notes.push({
       filename: entry.name,
@@ -67,10 +68,22 @@ export async function GET(request) {
     return NextResponse.json({ error: "Path is outside vault" }, { status: 403 });
   }
 
-  const monthsParam = parseInt(searchParams.get("months"), 10);
-  const months = Number.isFinite(monthsParam) && monthsParam > 0 ? monthsParam : 3;
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - months);
+  // Date window: explicit startDate/endDate (YYYY-MM-DD) take precedence;
+  // otherwise fall back to a trailing `months` window (default 3).
+  const startParam = searchParams.get("startDate");
+  const endParam = searchParams.get("endDate");
+  let start = startParam ? new Date(startParam) : null;
+  if (start && isNaN(start.getTime())) start = null;
+  if (!start) {
+    const monthsParam = parseInt(searchParams.get("months"), 10);
+    const months = Number.isFinite(monthsParam) && monthsParam > 0 ? monthsParam : 3;
+    start = new Date();
+    start.setMonth(start.getMonth() - months);
+  }
+  let end = endParam ? new Date(endParam) : null;
+  if (end && isNaN(end.getTime())) end = null;
+  if (end) end.setHours(23, 59, 59, 999);
+  const cutoff = { start, end };
 
   // 1. Primary Obsidian folder notes
   const primaryNotes = readFolder(targetDir, cutoff, "obsidian", folderPath || "Vault root");

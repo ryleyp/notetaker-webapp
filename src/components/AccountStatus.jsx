@@ -7,6 +7,7 @@ import { calcCost } from "@/lib/pricing";
 import { detectAccount } from "@/lib/accounts";
 import { reverseReplacements } from "@/lib/sanitize";
 import { buildScrubReport } from "@/lib/scrub";
+import ScrubPanel from "@/components/ScrubPanel";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -328,53 +329,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
 
           {loadedNotes?.length > 0 && !showConfirm && (
             <div className="mt-5 pt-5 border-t border-gray-100">
-              {scrubReport.length > 0 && (
-                <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 overflow-hidden">
-                  <button
-                    onClick={() => setScrubOpen((v) => !v)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs text-orange-800 hover:bg-orange-100 transition-colors"
-                  >
-                    <span>
-                      {restoredIds.size > 0
-                        ? `${scrubReport.length - restoredIds.size} of ${scrubReport.length} flagged line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed`
-                        : `${scrubReport.length} line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed (keyword filter)`}
-                    </span>
-                    <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${scrubOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                  {scrubOpen && (
-                    <ul className="divide-y divide-orange-100 max-h-52 overflow-y-auto">
-                      {scrubReport.map((item) => (
-                        <li key={item.id} className="flex gap-2 items-start px-3 py-1.5">
-                          <input
-                            type="checkbox"
-                            id={`pre-${item.id}`}
-                            checked={restoredIds.has(item.id)}
-                            onChange={(e) => {
-                              const next = new Set(restoredIds);
-                              if (e.target.checked) next.add(item.id);
-                              else next.delete(item.id);
-                              setRestoredIds(next);
-                            }}
-                            className="mt-0.5 flex-shrink-0 accent-orange-600"
-                          />
-                          <label htmlFor={`pre-${item.id}`} className="text-xs cursor-pointer leading-relaxed">
-                            <span className="font-mono text-orange-500 mr-1">{item.noteDate}</span>
-                            <span className="text-orange-700 mr-1 font-medium">{item.noteTitle} —</span>
-                            <span className="text-gray-700">{item.line.trim()}</span>
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {scrubOpen && (
-                    <p className="px-3 py-1.5 text-xs text-orange-600 border-t border-orange-100">
-                      Check a line to keep it — unchecked lines are removed before sending to Claude.
-                    </p>
-                  )}
-                </div>
-              )}
+              <ScrubPanel scrubReport={scrubReport} restoredIds={restoredIds} setRestoredIds={setRestoredIds} open={scrubOpen} setOpen={setScrubOpen} idPrefix="pre-" className="mb-4" />
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-xs text-gray-500 font-medium">Model</span>
                 <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden">
@@ -467,53 +422,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                     Sanitized note content will be sent to Claude. Names in your glossary are replaced before sending.
                   </p>
                 </div>
-                {scrubReport.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 overflow-hidden">
-                    <button
-                      onClick={() => setScrubOpen((v) => !v)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-xs text-orange-800 hover:bg-orange-100 transition-colors"
-                    >
-                      <span>
-                        {restoredIds.size > 0
-                          ? `${scrubReport.length - restoredIds.size} of ${scrubReport.length} flagged line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed`
-                          : `${scrubReport.length} line${scrubReport.length !== 1 ? "s" : ""} will be scrubbed (keyword filter)`}
-                      </span>
-                      <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${scrubOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                    {scrubOpen && (
-                      <ul className="divide-y divide-orange-100 max-h-52 overflow-y-auto">
-                        {scrubReport.map((item) => (
-                          <li key={item.id} className="flex gap-2 items-start px-3 py-1.5">
-                            <input
-                              type="checkbox"
-                              id={item.id}
-                              checked={restoredIds.has(item.id)}
-                              onChange={(e) => {
-                                const next = new Set(restoredIds);
-                                if (e.target.checked) next.add(item.id);
-                                else next.delete(item.id);
-                                setRestoredIds(next);
-                              }}
-                              className="mt-0.5 flex-shrink-0 accent-orange-600"
-                            />
-                            <label htmlFor={item.id} className="text-xs cursor-pointer leading-relaxed">
-                              <span className="font-mono text-orange-500 mr-1">{item.noteDate}</span>
-                              <span className="text-orange-700 mr-1 font-medium">{item.noteTitle} —</span>
-                              <span className="text-gray-700">{item.line.trim()}</span>
-                            </label>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {scrubOpen && (
-                      <p className="px-3 py-1.5 text-xs text-orange-600 border-t border-orange-100">
-                        Check a line to restore it — it will be included when sent to Claude.
-                      </p>
-                    )}
-                  </div>
-                )}
+                <ScrubPanel scrubReport={scrubReport} restoredIds={restoredIds} setRestoredIds={setRestoredIds} open={scrubOpen} setOpen={setScrubOpen} idPrefix="" className="mt-3" />
                 <div className="flex gap-3 mt-3">
                   <button onClick={() => setShowConfirm(false)} className="btn-secondary flex-1">
                     Cancel
