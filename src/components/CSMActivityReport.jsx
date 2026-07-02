@@ -17,20 +17,25 @@ function defaultRangeStart() {
   return toISO(d);
 }
 
-// Current calendar quarter plus the three before it, newest first.
+// NI fiscal year starts in October; FY is named for the year it ends in
+// (FY26 = Oct 2025 – Sep 2026). Q1 = Oct–Dec, Q2 = Jan–Mar, Q3 = Apr–Jun,
+// Q4 = Jul–Sep. Current fiscal quarter plus the three before it, newest first.
+const FY_START_MONTH = 9; // October, 0-indexed
+
 function quarterPresets() {
   const now = new Date();
-  let year = now.getFullYear();
-  let q = Math.floor(now.getMonth() / 3); // 0-indexed quarter
+  let fy = now.getFullYear() + (now.getMonth() >= FY_START_MONTH ? 1 : 0);
+  let q = Math.floor(((now.getMonth() - FY_START_MONTH + 12) % 12) / 3); // 0..3
   const presets = [];
   for (let i = 0; i < 4; i++) {
+    const startMonth = FY_START_MONTH + q * 3; // months past Jan of fy-1; may exceed 11
     presets.push({
-      label: `Q${q + 1} ${year}`,
-      start: toISO(new Date(year, q * 3, 1)),
-      end: toISO(new Date(year, q * 3 + 3, 0)),
+      label: `Q${q + 1} FY${String(fy).slice(2)}`,
+      start: toISO(new Date(fy - 1, startMonth, 1)),
+      end: toISO(new Date(fy - 1, startMonth + 3, 0)),
     });
     q--;
-    if (q < 0) { q = 3; year--; }
+    if (q < 0) { q = 3; fy--; }
   }
   return presets;
 }
