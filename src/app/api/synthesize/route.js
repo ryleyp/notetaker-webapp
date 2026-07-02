@@ -447,10 +447,11 @@ ${resumeRows.map((r) => `- ${r.eventDate}: ${r.title}`).join("\n")}
 ` : ""}
 OUTPUT FORMAT — output ONLY newline-delimited JSON (NDJSON): exactly one JSON object per line, one line per activity. No Markdown, no code fences, no intro or commentary, no blank lines between objects. Each line has exactly these keys:
 
-{"eventDate":"YYYY-MM-DD","title":"...","type":"...","subtype":"...","comments":"...","review":false,"reviewReason":""}
+{"eventDate":"YYYY-MM-DD","title":"...","type":"...","subtype":"...","comments":"...","sourceTitle":"...","review":false,"reviewReason":""}
 
 Field rules:
 - **eventDate**: the date of the note this activity came from (YYYY-MM-DD, taken from the ### heading of the source)
+- **sourceTitle**: the exact title of the source note this activity came from, copied verbatim from its ### heading (the part after the date). Every row MUST cite its source.
 - **title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
 - **type** and **subtype**: must exactly match one option from the taxonomy below
 - **comments**: max 800 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.

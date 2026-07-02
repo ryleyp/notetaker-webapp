@@ -37,12 +37,13 @@ export function CountsBadges({ counts, className = "" }) {
 // checkbox — unchecking drops that note from what is sent to Claude
 // (useful for multi-account internal meetings that don't belong in an
 // account-scoped report).
-export function NoteList({ notes, excludedFiles, onToggle }) {
+export function NoteList({ notes, excludedFiles, onToggle, noteRisks }) {
   const selectable = excludedFiles instanceof Set && typeof onToggle === "function";
   return (
     <ul className="text-xs text-gray-500 space-y-0.5 max-h-32 overflow-y-auto">
       {notes.map((n) => {
         const excluded = selectable && excludedFiles.has(n.filename);
+        const risk = noteRisks?.[n.filename];
         return (
           <li key={n.filename} className={`flex gap-2 items-center ${excluded ? "opacity-40 line-through" : ""}`}>
             {selectable && (
@@ -56,6 +57,14 @@ export function NoteList({ notes, excludedFiles, onToggle }) {
             )}
             <span className="font-mono text-gray-400 flex-shrink-0">{n.date}</span>
             <span className="truncate">{n.title}</span>
+            {risk && (
+              <span
+                title={`Mentions ${risk.account} ${risk.hits}× vs this account ${risk.ownHits}× — auto-excluded, check to include anyway`}
+                className="flex-shrink-0 text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5"
+              >
+                mostly {risk.account}?
+              </span>
+            )}
             {n.source !== "obsidian" && (
               <span className="text-gray-400 flex-shrink-0 italic">{n.sourceLabel}</span>
             )}
@@ -63,6 +72,24 @@ export function NoteList({ notes, excludedFiles, onToggle }) {
         );
       })}
     </ul>
+  );
+}
+
+// Per-run isolation switch: skip cross-folder search so only the account's
+// own folder feeds the report.
+export function StrictToggle({ strict, setStrict, disabled }) {
+  return (
+    <label className={`flex items-center gap-1.5 text-xs mt-2 ${disabled ? "text-gray-300" : "text-gray-500 cursor-pointer"}`}>
+      <input
+        type="checkbox"
+        checked={strict}
+        disabled={disabled}
+        onChange={(e) => setStrict(e.target.checked)}
+        className="accent-obsidian-600"
+      />
+      Account folder only
+      <span title="Skips cross-folder search. Strictest isolation — multi-account notes from other folders never enter the report. Re-scan after changing.">ⓘ</span>
+    </label>
   );
 }
 

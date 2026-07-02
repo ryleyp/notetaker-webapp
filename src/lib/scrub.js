@@ -87,6 +87,52 @@ function getOwnTerms(accountName, allAccounts) {
     .filter(Boolean);
 }
 
+// Total whole-word occurrences of any of `terms` in `text`.
+export function countTermHits(text, terms) {
+  let count = 0;
+  for (const t of terms || []) {
+    const k = (t || "").trim();
+    if (!k) continue;
+    const esc = escapeRegex(k);
+    const left = /^\w/.test(k) ? "\\b" : "";
+    const right = /\w$/.test(k) ? "\\b" : "";
+    const m = (text || "").match(new RegExp(`${left}${esc}${right}`, "gi"));
+    if (m) count += m.length;
+  }
+  return count;
+}
+
+// Is this note mostly about a different account? Compares whole-note term
+// hits for the current account vs every other account. Returns the dominant
+// other account's name when its terms clearly outnumber the current
+// account's, so the UI can default-exclude the note from the report.
+export function assessNoteDominance(note, accountName, allAccounts) {
+  if (!accountName || accountName === "Internal") return null;
+  const text = `${note.title || ""}\n${note.content || ""}`;
+  const ownHits = countTermHits(
+    text,
+    (allAccounts || [])
+      .filter((a) => a.name === accountName)
+      .flatMap((a) => [a.name, ...(a.aliases || []), ...(a.keywords || [])])
+  );
+  let dominant = null;
+  for (const a of allAccounts || []) {
+    if (a.name === accountName || a.name === "Internal") continue;
+    const hits = countTermHits(text, [a.name, ...(a.aliases || []), ...(a.keywords || [])]);
+    if (hits >= 2 && hits > ownHits && (!dominant || hits > dominant.hits)) {
+      dominant = { account: a.name, hits, ownHits };
+    }
+  }
+  return dominant;
+}
+
+// Inside anchored transcript-like blocks (no blank lines / headings for
+// structure), removing only the literal naming line leaves the surrounding
+// conversation context. For large blocks, also drop the lines around each
+// forbidden hit unless they explicitly mention the current account.
+const RADIUS_MIN_BLOCK = 8;
+const SCRUB_RADIUS = 2;
+
 // Context-aware scrub: which line indexes of `content` should be removed.
 // Removing only the line that names another account leaves orphaned context
 // (site names, action items...) that the model then misattributes to the
@@ -131,6 +177,18 @@ export function computeScrubbedLineIndexes(content, accountName, allAccounts) {
         for (let x = start; x < k; x++) {
           if (!lines[x].trim()) continue;
           if (!anchored || lineContainsKeyword(lines[x], forbidden)) flagged.add(x);
+        }
+        // Radius rule for large anchored blocks (transcripts): the lines
+        // around a forbidden mention are that account's context too.
+        if (anchored && block.length >= RADIUS_MIN_BLOCK) {
+          for (let x = start; x < k; x++) {
+            if (!lineContainsKeyword(lines[x], forbidden)) continue;
+            for (let r = Math.max(start, x - SCRUB_RADIUS); r <= Math.min(k - 1, x + SCRUB_RADIUS); r++) {
+              if (!lines[r].trim()) continue;
+              if (lineContainsKeyword(lines[r], own)) continue;
+              flagged.add(r);
+            }
+          }
         }
       }
       start = null;

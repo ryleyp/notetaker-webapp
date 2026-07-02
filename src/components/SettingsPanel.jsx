@@ -25,6 +25,72 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
   const [testResult, setTestResult] = useState(null);
   const [newOriginal, setNewOriginal] = useState("");
   const [newAlias, setNewAlias] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestions, setSuggestions] = useState(null); // { account: [{term,count}] }
+  const [suggestError, setSuggestError] = useState(null);
+  const [pickedTerms, setPickedTerms] = useState(new Set()); // "account||term"
+
+  function formAccounts() {
+    return form.accounts
+      .filter((a) => a.name.trim())
+      .map((a) => ({
+        name: a.name.trim(),
+        archiveFolder: a.archiveFolder.trim(),
+        aliases: a.aliasesText.split(",").map((s) => s.trim()).filter(Boolean),
+        keywords: a.keywordsText.split(",").map((s) => s.trim()).filter(Boolean),
+      }));
+  }
+
+  async function handleSuggestKeywords() {
+    if (!form.vaultPath.trim()) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    setSuggestions(null);
+    setPickedTerms(new Set());
+    try {
+      const params = new URLSearchParams({
+        vaultPath: form.vaultPath.trim(),
+        accounts: JSON.stringify(formAccounts()),
+      });
+      if (form.transcriptsPath.trim()) params.set("transcriptsPath", form.transcriptsPath.trim());
+      const res = await fetch(`/api/suggest-keywords?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Scan failed");
+      setSuggestions(data.suggestions || {});
+    } catch (e) {
+      setSuggestError(e.message);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  function togglePicked(account, term) {
+    setPickedTerms((prev) => {
+      const key = `${account}||${term}`;
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function addPickedKeywords() {
+    setForm((f) => ({
+      ...f,
+      accounts: f.accounts.map((a) => {
+        const terms = [...pickedTerms]
+          .map((k) => k.split("||"))
+          .filter(([acct]) => acct === a.name.trim())
+          .map(([, term]) => term);
+        if (!terms.length) return a;
+        const existing = a.keywordsText.split(",").map((s) => s.trim()).filter(Boolean);
+        const merged = [...existing, ...terms.filter((t) => !existing.some((e) => e.toLowerCase() === t.toLowerCase()))];
+        return { ...a, keywordsText: merged.join(", ") };
+      }),
+    }));
+    setPickedTerms(new Set());
+    setSuggestions(null);
+  }
 
   function handleChange(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -367,9 +433,68 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
             ))}
           </div>
 
-          <button onClick={addAccount} className="btn-secondary mt-3">
-            + Add account
-          </button>
+          <div className="flex gap-2 mt-3">
+            <button onClick={addAccount} className="btn-secondary">
+              + Add account
+            </button>
+            <button
+              onClick={handleSuggestKeywords}
+              disabled={suggesting || !form.vaultPath.trim()}
+              className="btn-secondary"
+              title="Scan each account's folders for distinctive terms (sites, programs, contacts) to add as keywords"
+            >
+              {suggesting ? "Scanning notes…" : "🔍 Suggest keywords from my notes"}
+            </button>
+          </div>
+          {suggestError && <p className="mt-2 text-sm text-red-600">{suggestError}</p>}
+
+          {suggestions && (
+            <div className="mt-3 rounded-lg border border-obsidian-200 bg-obsidian-50 p-3 space-y-3">
+              <p className="text-xs text-gray-700">
+                Terms that appear often in one account's notes and rarely elsewhere. Check the ones that
+                are genuinely account-specific (sites, programs, people), then add them as keywords —
+                they'll be scrubbed and redacted from every other account's reports.
+              </p>
+              {Object.entries(suggestions).every(([, terms]) => !terms.length) && (
+                <p className="text-xs text-gray-500">No distinctive terms found — folders may be empty or terms already covered.</p>
+              )}
+              {Object.entries(suggestions).map(([account, terms]) =>
+                terms.length ? (
+                  <div key={account}>
+                    <p className="text-xs font-semibold text-gray-800 mb-1">{account}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {terms.map(({ term, count }) => {
+                        const picked = pickedTerms.has(`${account}||${term}`);
+                        return (
+                          <button
+                            key={term}
+                            type="button"
+                            onClick={() => togglePicked(account, term)}
+                            className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                              picked
+                                ? "bg-obsidian-600 text-white border-obsidian-600"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                            }`}
+                            title={`${count} occurrences`}
+                          >
+                            {picked ? "✓ " : ""}{term} <span className={picked ? "text-obsidian-200" : "text-gray-400"}>×{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null
+              )}
+              <div className="flex gap-2">
+                <button onClick={addPickedKeywords} disabled={!pickedTerms.size} className="btn-primary text-xs px-3 py-1.5">
+                  Add {pickedTerms.size || ""} selected as keywords
+                </button>
+                <button onClick={() => { setSuggestions(null); setPickedTerms(new Set()); }} className="btn-secondary text-xs px-3 py-1.5">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">

@@ -14,7 +14,7 @@ const COLUMNS = [
   { key: "comments", label: "Comments" },
 ];
 
-export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow, onSave, saving, saved, savedPath, cost }) {
+export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow, onSave, saving, saved, savedPath, cost, sourceInfo, onVerify, verifying, onFlagBleed }) {
   const [viewMode, setViewMode] = useState("table");
   const [copiedKey, setCopiedKey] = useState(null);
   const [editing, setEditing] = useState(null); // "row-col" key
@@ -28,6 +28,17 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
 
   const markdown = rows.length ? rowsToMarkdown(rows) : rawText;
   const reviewCount = rows.filter((r) => r.review).length;
+  const failedCount = rows.filter((r) => r.verify === "failed").length;
+
+  // Look up where a row's cited source note came from (cross-folder = risky).
+  const sourceMeta = (row) => {
+    if (!sourceInfo || !row.sourceTitle) return null;
+    const st = row.sourceTitle.toLowerCase();
+    for (const [title, meta] of Object.entries(sourceInfo)) {
+      if (title.includes(st) || st.includes(title)) return meta;
+    }
+    return null;
+  };
 
   return (
     <div className="card overflow-hidden">
@@ -43,6 +54,11 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
           {!streaming && reviewCount > 0 && (
             <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
               ⚠ {reviewCount} row{reviewCount !== 1 ? "s" : ""} to review
+            </span>
+          )}
+          {!streaming && failedCount > 0 && (
+            <span className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+              ✗ {failedCount} failed verification
             </span>
           )}
           {streaming && (
@@ -74,6 +90,16 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
               Markdown
             </button>
           </div>
+          {onVerify && rows.length > 0 && !streaming && (
+            <button
+              onClick={onVerify}
+              disabled={verifying}
+              className="btn-secondary text-xs px-3 py-1.5"
+              title="Second-pass audit: a fast model checks each row against its cited source to confirm it's genuinely this account's activity"
+            >
+              {verifying ? "Verifying…" : "Verify vs sources"}
+            </button>
+          )}
           <button onClick={() => copy(markdown, "all")} className="btn-secondary text-xs px-3 py-1.5">
             {copiedKey === "all" ? "Copied!" : "Copy All"}
           </button>
@@ -107,11 +133,13 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
                 </thead>
                 <tbody>
                   {rows.map((row, r) => (
-                    <tr key={r} className={row.review ? "bg-amber-50" : r % 2 === 1 ? "bg-gray-50" : ""}>
+                    <tr key={r} className={row.verify === "failed" ? "bg-red-50" : row.review ? "bg-amber-50" : r % 2 === 1 ? "bg-gray-50" : ""}>
                       {COLUMNS.map((c) => {
                         const key = `${r}-${c.key}`;
                         const text = row[c.key] || "";
                         const isComment = c.key === "comments";
+                        const isTitle = c.key === "title";
+                        const meta = isTitle ? sourceMeta(row) : null;
                         const over = isComment && text.length > COMMENT_LIMIT;
                         const isEditing = editing === key;
 
@@ -141,6 +169,16 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
                           >
                             {copiedKey === key && <span className="text-green-600 font-medium mr-1">✓ Copied</span>}
                             {text}
+                            {isTitle && row.sourceTitle && (
+                              <div className="mt-0.5 text-[10px] text-gray-400">
+                                from: {row.sourceTitle}
+                                {meta?.source === "cross-vault" && (
+                                  <span className="ml-1 text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1" title="Source note came from another folder — double-check attribution">
+                                    cross-folder
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {isComment && (
                               <div className="mt-1 flex items-center gap-2">
                                 <span className={`font-mono text-[10px] ${over ? "text-red-600 font-bold" : "text-gray-400"}`}>
@@ -177,6 +215,21 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
                           {row.review && (
                             <span title={row.reviewReason || "Classification uncertain"} className="text-amber-600 cursor-help">⚠</span>
                           )}
+                          {row.verify === "passed" && (
+                            <span title={row.verifyReason || "Verified against source"} className="text-green-600 cursor-help">✓</span>
+                          )}
+                          {row.verify === "failed" && (
+                            <span title={row.verifyReason || "Not supported by cited source"} className="text-red-600 cursor-help">✗</span>
+                          )}
+                          {onFlagBleed && (
+                            <button
+                              onClick={() => onFlagBleed(r)}
+                              title="This row is another account's content — teach the filter and remove it"
+                              className="text-gray-300 hover:text-red-500 text-xs"
+                            >
+                              ⚑
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -189,6 +242,14 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
                 <p className="text-xs font-semibold text-amber-800">Classification notes from Claude:</p>
                 {rows.map((row, r) => row.review && row.reviewReason ? (
                   <p key={r} className="text-xs text-amber-700">• <span className="font-medium">{row.title}</span>: {row.reviewReason}</p>
+                ) : null)}
+              </div>
+            )}
+            {rows.some((r) => r.verify === "failed") && !streaming && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
+                <p className="text-xs font-semibold text-red-800">Rows that failed source verification — likely misattributed, review before filing:</p>
+                {rows.map((row, r) => row.verify === "failed" ? (
+                  <p key={r} className="text-xs text-red-700">• <span className="font-medium">{row.title}</span>: {row.verifyReason || "not supported by cited source"}</p>
                 ) : null)}
               </div>
             )}

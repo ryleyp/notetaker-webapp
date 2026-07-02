@@ -17,8 +17,12 @@ export function parseActivityRows(text) {
       type: obj.type || "",
       subtype: obj.subtype || "",
       comments: obj.comments || "",
+      sourceTitle: obj.sourceTitle || "",
       review: !!obj.review,
       reviewReason: obj.reviewReason || "",
+      // Post-generation verification verdict (set by the verify pass).
+      verify: obj.verify || "",
+      verifyReason: obj.verifyReason || "",
     });
   }
   return rows;

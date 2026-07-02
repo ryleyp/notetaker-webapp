@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { detectAccount } from "@/lib/accounts";
-import { buildScrubReport, redactForbiddenTerms } from "@/lib/scrub";
+import { buildScrubReport, redactForbiddenTerms, assessNoteDominance } from "@/lib/scrub";
 import { reverseReplacements } from "@/lib/sanitize";
 import { calcCost } from "@/lib/pricing";
 
@@ -36,6 +36,8 @@ export function useReportWorkflow({
   const [rawNotes, setRawNotes] = useState(null);
   const [loadedNotes, setLoadedNotes] = useState(null);
   const [excludedFiles, setExcludedFiles] = useState(new Set());
+  const [noteRisks, setNoteRisks] = useState({}); // filename -> dominant other account
+  const [strictFolderOnly, setStrictFolderOnly] = useState(false);
   const [loadCounts, setLoadCounts] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -114,6 +116,7 @@ export function useReportWorkflow({
     setScrubReport([]);
     setExtras(null);
     setExcludedFiles(new Set());
+    setNoteRisks({});
   }
 
   // Manually drop a scanned note (e.g. a multi-account internal meeting)
@@ -151,7 +154,9 @@ export function useReportWorkflow({
       const acct = acctCtx();
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (selectedFolder) params.set("folderPath", selectedFolder);
-      if (acct.aliases?.length) params.set("accountAliases", acct.aliases.join(","));
+      // Strict mode: skip cross-folder search entirely — the account's own
+      // folder is the only source, eliminating multi-account note risk.
+      if (!strictFolderOnly && acct.aliases?.length) params.set("accountAliases", acct.aliases.join(","));
       buildNotesParams?.(params);
 
       const [notesRes, extraData] = await Promise.all([
@@ -166,6 +171,20 @@ export function useReportWorkflow({
       setLoadedNotes(kept);
       setLoadCounts(data.counts);
       setScrubReport(buildScrubReport(kept, acct.name, settings.accounts || []));
+
+      // Notes dominated by another account default to excluded — they're the
+      // main source of misattributed content. The user can re-include them.
+      const risks = {};
+      const autoExcluded = new Set();
+      for (const n of kept) {
+        const dom = assessNoteDominance(n, acct.name, settings.accounts || []);
+        if (dom) {
+          risks[n.filename] = dom;
+          autoExcluded.add(n.filename);
+        }
+      }
+      setNoteRisks(risks);
+      setExcludedFiles(autoExcluded);
       if (extraData) setExtras(extraData);
     } catch (e) {
       setLoadError(e.message);
@@ -337,7 +356,8 @@ export function useReportWorkflow({
   return {
     TODAY,
     selectedFolder, selectFolder,
-    rawNotes, loadedNotes, activeNotes, excludedFiles, toggleNoteExcluded, loadCounts, loadError, loading, extras,
+    rawNotes, loadedNotes, activeNotes, excludedFiles, toggleNoteExcluded, noteRisks,
+    strictFolderOnly, setStrictFolderOnly, loadCounts, loadError, loading, extras,
     showConfirm, setShowConfirm,
     synthesizing, synthError, output, setOutput, partial, redactedCount,
     saving, saved, savedPath, synthCost, droppedCount,

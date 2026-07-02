@@ -6,6 +6,8 @@ import {
   scrubWithExceptions,
   findAccountBleed,
   redactForbiddenTerms,
+  countTermHits,
+  assessNoteDominance,
 } from "@/lib/scrub";
 
 const ACCOUNTS = [
@@ -114,6 +116,55 @@ describe("account name/alias bleed protection", () => {
     const notes = [note("a.md", "L3Harris renewal is on track")];
     const [scrubbed] = scrubWithExceptions(notes, "L3Harris", ACCOUNTS);
     expect(scrubbed.content).toBe("L3Harris renewal is on track");
+  });
+});
+
+describe("countTermHits / assessNoteDominance", () => {
+  it("counts whole-word hits across terms", () => {
+    expect(countTermHits("NGC met NGC about ngc things", ["ngc"])).toBe(3);
+    expect(countTermHits("engcomputer", ["ngc"])).toBe(0);
+  });
+
+  it("flags a note dominated by another account for auto-exclusion", () => {
+    const n = note("a.md", "northrop sites reviewed\nNGC coverage plan\nB-21 milestones\nbrief l3harris aside");
+    const dom = assessNoteDominance(n, "L3Harris", ACCOUNTS);
+    expect(dom.account).toBe("Northrop Grumman");
+    expect(dom.hits).toBeGreaterThan(dom.ownHits);
+  });
+
+  it("does not flag a note that is mostly about the current account", () => {
+    const n = note("a.md", "l3harris renewal\nL3Harris WESCAM demo\none ngc mention\nl3 harris follow-up");
+    expect(assessNoteDominance(n, "L3Harris", ACCOUNTS)).toBeNull();
+  });
+
+  it("never flags for Internal reports", () => {
+    const n = note("a.md", "northrop northrop northrop");
+    expect(assessNoteDominance(n, "Internal", ACCOUNTS)).toBeNull();
+  });
+});
+
+describe("transcript scrub radius", () => {
+  it("removes surrounding context lines around a mention inside a large anchored block", () => {
+    const lines = [
+      "l3harris kickoff discussion",   // 0 own — kept
+      "general agenda review",         // 1 within radius of 3 — removed
+      "budget context for the program",// 2 within radius of 3 — removed
+      "northrop asked about licensing",// 3 forbidden — removed
+      "they want the site expansion",  // 4 within radius — removed
+      "timeline is next quarter",      // 5 within radius — removed
+      "back to l3harris items",        // 6 own — kept
+      "l3harris action items assigned",// 7 own — kept
+    ].join("\n");
+    const [scrubbed] = scrubWithExceptions([note("a.md", lines)], "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe(
+      "l3harris kickoff discussion\nback to l3harris items\nl3harris action items assigned"
+    );
+  });
+
+  it("does not apply the radius to small anchored paragraphs", () => {
+    const content = "L3Harris keep\nlockheed folks joined the call\nkeep too";
+    const [scrubbed] = scrubWithExceptions([note("a.md", content)], "L3Harris", ACCOUNTS);
+    expect(scrubbed.content).toBe("L3Harris keep\nkeep too");
   });
 });
 

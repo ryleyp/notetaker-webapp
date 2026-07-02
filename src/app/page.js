@@ -113,6 +113,17 @@ export default function Home() {
     }).catch(() => {});
   }
 
+  // Targeted accounts update (e.g. the bleed-feedback flow adding keywords)
+  // without opening the full settings panel.
+  function handleAccountsUpdate(accounts) {
+    setSettings((prev) => {
+      const merged = { ...prev, accounts };
+      localStorage.setItem("obsidian-notes-settings", JSON.stringify(merged));
+      persistConfig(merged);
+      return merged;
+    });
+  }
+
   function handleSaveSettings(newSettings) {
     const merged = { replacements: [], ...newSettings };
     setSettings(merged);
@@ -456,6 +467,7 @@ export default function Home() {
         {mode === "csm-activity" && (
           <CSMActivityReport
             settings={settings}
+            onAccountsUpdate={handleAccountsUpdate}
             onSettingsClick={() => setShowSettings(true)}
           />
         )}

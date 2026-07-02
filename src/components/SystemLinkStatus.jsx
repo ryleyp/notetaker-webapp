@@ -4,7 +4,7 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { textHasAlias, detectAccount } from "@/lib/accounts";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
-import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning } from "@/components/ReportSections";
+import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning, StrictToggle } from "@/components/ReportSections";
 
 const SL_PRODUCT = {
   name: "SystemLink",
@@ -84,7 +84,7 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                         )}
                       </p>
                       <CountsBadges counts={wf.loadCounts} />
-                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} />
+                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} noteRisks={wf.noteRisks} />
                     </>
                   )}
                 </div>
@@ -93,7 +93,10 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
               {wf.loadError && <p className="mt-2 text-sm text-red-600">{wf.loadError}</p>}
             </div>
 
-            <ScanButton loading={wf.loading} scanned={wf.loadedNotes !== null} onClick={wf.handleLoadNotes} disabled={wf.loading || !settings.vaultPath} />
+            <div className="flex flex-col items-end">
+              <ScanButton loading={wf.loading} scanned={wf.loadedNotes !== null} onClick={wf.handleLoadNotes} disabled={wf.loading || !settings.vaultPath} />
+              <StrictToggle strict={wf.strictFolderOnly} setStrict={wf.setStrictFolderOnly} disabled={wf.loading} />
+            </div>
           </div>
 
           {wf.activeNotes?.length > 0 && !wf.showConfirm && (
