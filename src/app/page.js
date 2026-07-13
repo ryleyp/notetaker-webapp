@@ -12,6 +12,7 @@ import SystemLinkStatus from "@/components/SystemLinkStatus";
 import CSMActivityReport from "@/components/CSMActivityReport";
 import SanitizeReview from "@/components/SanitizeReview";
 import SpeakerReview from "@/components/SpeakerReview";
+import SfdcActivityCard from "@/components/SfdcActivityCard";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
 import { matchVaultFolder, DEFAULT_ACCOUNTS } from "@/lib/accounts";
@@ -52,6 +53,12 @@ export default function Home() {
   const [savingTranscript, setSavingTranscript] = useState(false);
   const [transcriptSaved, setTranscriptSaved] = useState(false);
   const [transcriptSavedPath, setTranscriptSavedPath] = useState("");
+
+  // SFDC activity entries generated in parallel with the meeting notes.
+  const [sfdcOutput, setSfdcOutput] = useState("");
+  const [sfdcGenerating, setSfdcGenerating] = useState(false);
+  const [sfdcError, setSfdcError] = useState(null);
+  const [sfdcCost, setSfdcCost] = useState(null);
 
   useEffect(() => {
     let base;
@@ -236,6 +243,9 @@ export default function Home() {
     setSaved(false);
     setSavedPath("");
     setPendingReview(null);
+    setSfdcOutput("");
+    setSfdcError(null);
+    setSfdcCost(null);
     await runSanitizeDetection("generate");
   }
 
@@ -284,12 +294,61 @@ export default function Home() {
   }
 
   // Step 3: sanitize + generate
+  // Generate SFDC activity entries from the same sanitized transcript, in
+  // parallel with the meeting notes. Names are pseudonymized before sending
+  // and restored after, exactly like doGenerate.
+  async function doGenerateSfdc(sanitizedTranscript, replacements) {
+    setSfdcGenerating(true);
+    setSfdcError(null);
+    setSfdcOutput("");
+    try {
+      const res = await fetch("/api/sfdc-activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript: sanitizedTranscript,
+          meetingTitle,
+          apiKey: settings.apiKey || undefined,
+          model,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "SFDC activity generation failed");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        const usageIdx = full.indexOf("\n__USAGE__");
+        const visible = usageIdx !== -1 ? full.slice(0, usageIdx) : full;
+        setSfdcOutput(replacements.length ? reverseReplacements(visible, replacements) : visible);
+      }
+      const usageIdx = full.indexOf("\n__USAGE__");
+      if (usageIdx !== -1) {
+        try { setSfdcCost(calcCost(JSON.parse(full.slice(usageIdx + 10)), model)); } catch {}
+        full = full.slice(0, usageIdx);
+      }
+      setSfdcOutput(replacements.length ? reverseReplacements(full, replacements) : full);
+    } catch (e) {
+      setSfdcError(e.message);
+    } finally {
+      setSfdcGenerating(false);
+    }
+  }
+
   async function doGenerate(replacements) {
     setActiveReplacements(replacements);
     const corrected = applyCorrections(transcript, settings.corrections || []);
     const sanitizedTranscript = replacements.length
       ? applyReplacements(corrected, replacements)
       : corrected;
+
+    // Kick off SFDC activity generation in parallel — doesn't block notes.
+    doGenerateSfdc(sanitizedTranscript, replacements);
 
     setProcessing(true);
     try {
@@ -453,6 +512,11 @@ export default function Home() {
     setActiveReplacements([]);
     setTranscriptSaved(false);
     setTranscriptSavedPath("");
+    setSfdcOutput("");
+    setSfdcError(null);
+    setSfdcCost(null);
+    setSpeakerError(null);
+    setPendingSpeakers(null);
   }
 
   async function resolveAutoFolder(content) {
@@ -538,6 +602,14 @@ export default function Home() {
                 todosSaved={todosSaved}
                 cost={noteCost}
               />
+              {(sfdcOutput || sfdcGenerating || sfdcError) && (
+                <SfdcActivityCard
+                  output={sfdcOutput}
+                  streaming={sfdcGenerating}
+                  cost={sfdcCost}
+                  error={sfdcError}
+                />
+              )}
             </div>
           ) : (
             <>
