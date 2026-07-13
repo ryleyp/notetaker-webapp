@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { looksSpeakerLabeled } from "@/lib/speakers";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist. When given a meeting transcript, you produce highly detailed, structured meeting notes in Markdown format.
 
@@ -30,10 +31,16 @@ Only include a tag if that city/state/technology is actually discussed — not j
 function buildPrompt(transcript, meetingTitle) {
   const title = meetingTitle || "Meeting Notes";
 
+  const speakerGuidance = looksSpeakerLabeled(transcript)
+    ? `
+This transcript has been segmented by speaker — each turn is preceded by a label like **Name:** or **Speaker 1:**. Use these labels to attribute statements, decisions, questions, and commitments to the correct person throughout your notes (e.g. "David raised concerns about..." or "Speaker 2 confirmed..."). Do not blend or merge different speakers' statements together. When listing action item owners, use the specific speaker who committed to the item rather than a generic "team," unless it is genuinely a group commitment. The labels are a best-effort inference from conversational patterns, not verified — if a label is a generic "Speaker N" (no real name was available), it's fine to refer to that person by that label in your notes.
+`
+    : "";
+
   return `Please analyze this meeting transcript and create detailed meeting notes.
 
 Meeting Title: ${title}
-
+${speakerGuidance}
 ---
 TRANSCRIPT:
 ${transcript}

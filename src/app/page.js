@@ -11,9 +11,11 @@ import AccountStatus from "@/components/AccountStatus";
 import SystemLinkStatus from "@/components/SystemLinkStatus";
 import CSMActivityReport from "@/components/CSMActivityReport";
 import SanitizeReview from "@/components/SanitizeReview";
+import SpeakerReview from "@/components/SpeakerReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
 import { matchVaultFolder, DEFAULT_ACCOUNTS } from "@/lib/accounts";
+import { looksSpeakerLabeled } from "@/lib/speakers";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
@@ -31,6 +33,12 @@ export default function Home() {
   const [pendingReview, setPendingReview] = useState(null); // null | detected[]
   const [pendingAction, setPendingAction] = useState("generate"); // "generate" | "saveTranscript"
   const [activeReplacements, setActiveReplacements] = useState([]);
+
+  // Speaker detection state — best-effort inference of speaker turns from
+  // conversational cues, since raw dictation has no real speaker signal.
+  const [detectingSpeakers, setDetectingSpeakers] = useState(false);
+  const [pendingSpeakers, setPendingSpeakers] = useState(null); // null | raw segmented text
+  const [speakerError, setSpeakerError] = useState(null);
 
   // Generation state
   const [processing, setProcessing] = useState(false);
@@ -135,6 +143,46 @@ export default function Home() {
 
   function handleTitleSuggest(suggested) {
     if (!meetingTitle) setMeetingTitle(suggested);
+  }
+
+  // Best-effort speaker segmentation: apply known glossary replacements
+  // first (same privacy tradeoff as the sanitize scan below — only terms
+  // already in the glossary are protected before this call), send to
+  // Claude for turn inference, then show the review card.
+  async function handleDetectSpeakers() {
+    if (!transcript.trim()) return;
+    setSpeakerError(null);
+    setDetectingSpeakers(true);
+    try {
+      const sanitizedForDetection = applyReplacements(
+        applyCorrections(transcript, settings.corrections || []),
+        settings.replacements || []
+      );
+      const res = await fetch("/api/detect-speakers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: sanitizedForDetection, apiKey: settings.apiKey || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Speaker detection failed");
+      const restored = (settings.replacements || []).length
+        ? reverseReplacements(data.segmented, settings.replacements)
+        : data.segmented;
+      setPendingSpeakers(restored);
+    } catch (e) {
+      setSpeakerError(e.message);
+    } finally {
+      setDetectingSpeakers(false);
+    }
+  }
+
+  function handleSpeakerConfirm(labeledText) {
+    setTranscript(labeledText);
+    setPendingSpeakers(null);
+  }
+
+  function handleSpeakerSkip() {
+    setPendingSpeakers(null);
   }
 
   // Shared: detect entities, show review card, then route to action
@@ -503,6 +551,39 @@ export default function Home() {
                 setTranscript={setTranscript}
                 onTitleSuggest={handleTitleSuggest}
               />
+
+              {transcript.trim() && !pendingSpeakers && (
+                <div className="card p-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Distinguish speakers</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {looksSpeakerLabeled(transcript)
+                        ? "This transcript has speaker labels — notes will attribute statements to the right person."
+                        : "No speaker labels detected. Claude can infer likely speaker turns from conversational patterns (best-effort, not real diarization)."}
+                    </p>
+                    {speakerError && <p className="text-xs text-red-600 mt-1">{speakerError}</p>}
+                  </div>
+                  <button onClick={handleDetectSpeakers} disabled={detectingSpeakers} className="btn-secondary whitespace-nowrap">
+                    {detectingSpeakers ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Analyzing…
+                      </>
+                    ) : looksSpeakerLabeled(transcript) ? "Re-detect speakers" : "🎙️ Detect Speakers"}
+                  </button>
+                </div>
+              )}
+
+              {pendingSpeakers && (
+                <SpeakerReview
+                  rawText={pendingSpeakers}
+                  onConfirm={handleSpeakerConfirm}
+                  onSkip={handleSpeakerSkip}
+                />
+              )}
 
               <FolderSelector
                 vaultPath={settings.vaultPath}
