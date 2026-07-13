@@ -17,6 +17,12 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       archiveFolder: a.archiveFolder || "",
       aliasesText: (a.aliases || []).join(", "),
       keywordsText: (a.keywords || []).join(", "),
+      // EA/EP agreement numbers, each tied to keywords that identify it.
+      agreements: (a.agreements || []).map((g) => ({
+        type: g.type || "EA",
+        number: g.number || "",
+        keywordsText: (g.keywords || []).join(", "),
+      })),
     })),
   });
   const [newFind, setNewFind] = useState("");
@@ -150,11 +156,40 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
   }
 
   function addAccount() {
-    setForm((f) => ({ ...f, accounts: [...f.accounts, { name: "", archiveFolder: "", aliasesText: "", keywordsText: "" }] }));
+    setForm((f) => ({ ...f, accounts: [...f.accounts, { name: "", archiveFolder: "", aliasesText: "", keywordsText: "", agreements: [] }] }));
   }
 
   function removeAccount(i) {
     setForm((f) => ({ ...f, accounts: f.accounts.filter((_, idx) => idx !== i) }));
+  }
+
+  function addAgreement(accountIdx) {
+    setForm((f) => ({
+      ...f,
+      accounts: f.accounts.map((a, idx) =>
+        idx === accountIdx ? { ...a, agreements: [...(a.agreements || []), { type: "EA", number: "", keywordsText: "" }] } : a
+      ),
+    }));
+  }
+
+  function updateAgreement(accountIdx, agrIdx, field, value) {
+    setForm((f) => ({
+      ...f,
+      accounts: f.accounts.map((a, idx) =>
+        idx === accountIdx
+          ? { ...a, agreements: a.agreements.map((g, gi) => (gi === agrIdx ? { ...g, [field]: value } : g)) }
+          : a
+      ),
+    }));
+  }
+
+  function removeAgreement(accountIdx, agrIdx) {
+    setForm((f) => ({
+      ...f,
+      accounts: f.accounts.map((a, idx) =>
+        idx === accountIdx ? { ...a, agreements: a.agreements.filter((_, gi) => gi !== agrIdx) } : a
+      ),
+    }));
   }
 
   function handleSave() {
@@ -165,6 +200,13 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
         archiveFolder: a.archiveFolder.trim(),
         aliases: a.aliasesText.split(",").map((s) => s.trim()).filter(Boolean),
         keywords: a.keywordsText.split(",").map((s) => s.trim()).filter(Boolean),
+        agreements: (a.agreements || [])
+          .filter((g) => g.number.trim())
+          .map((g) => ({
+            type: g.type === "EP" ? "EP" : "EA",
+            number: g.number.trim(),
+            keywords: g.keywordsText.split(",").map((s) => s.trim()).filter(Boolean),
+          })),
       }));
     onSave({
       vaultPath: form.vaultPath.trim(),
@@ -384,7 +426,8 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
             Each account maps name aliases to a transcript archive subfolder. Aliases drive
             cross-folder search and auto-filing of vault-root notes. Keywords are account-specific
             terms (e.g. program names, product lines) that will be excluded from other accounts'
-            summaries.
+            summaries. EA / EP numbers let you tie each Enterprise Agreement or Purchase to the
+            keywords that identify it, so the right number can be surfaced when those terms come up.
           </p>
 
           <div className="space-y-3">
@@ -429,6 +472,57 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
                   value={a.keywordsText}
                   onChange={(e) => updateAccount(i, "keywordsText", e.target.value)}
                 />
+
+                {/* EA / EP agreement numbers, each tied to identifying keywords */}
+                <div className="pt-2 mt-1 border-t border-gray-200">
+                  <p className="text-xs font-medium text-gray-600 mb-1.5">EA / EP Numbers</p>
+                  {(a.agreements || []).length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {a.agreements.map((g, gi) => (
+                        <div key={gi} className="flex gap-2 items-start">
+                          <select
+                            value={g.type}
+                            onChange={(e) => updateAgreement(i, gi, "type", e.target.value)}
+                            className="input !w-16 flex-shrink-0"
+                            title="Agreement type"
+                          >
+                            <option value="EA">EA</option>
+                            <option value="EP">EP</option>
+                          </select>
+                          <input
+                            type="text"
+                            className="input w-32 flex-shrink-0"
+                            placeholder="Number"
+                            value={g.number}
+                            onChange={(e) => updateAgreement(i, gi, "number", e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="input flex-1"
+                            placeholder="Keywords to look for, comma-separated"
+                            value={g.keywordsText}
+                            onChange={(e) => updateAgreement(i, gi, "keywordsText", e.target.value)}
+                          />
+                          <button
+                            onClick={() => removeAgreement(i, gi)}
+                            className="text-gray-400 hover:text-red-500 flex-shrink-0 mt-2"
+                            title="Remove this number"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => addAgreement(i)}
+                    className="text-xs text-obsidian-600 hover:text-obsidian-700 font-medium"
+                  >
+                    + Add EA / EP number
+                  </button>
+                </div>
               </div>
             ))}
           </div>
