@@ -60,8 +60,15 @@ SUMMARY/NOTES RULES
 - Do not invent attendees, regions, outcomes, or next steps that aren't supported by the transcript.
 - Exclude raw internal complaints/blame, speculative pricing or forecast figures, and anything the account team wouldn't want visible in CRM.`;
 
-function buildPrompt(transcript, meetingTitle) {
+function buildPrompt(transcript, meetingTitle, suggestedAgreements = []) {
   const title = meetingTitle || "Meeting Notes";
+
+  // EA/EP numbers matched to this meeting by keyword (matching done client-side
+  // against the raw transcript). Listed in the SFDC entry so they can be copied
+  // into Salesforce; Claude only echoes them, it does not invent numbers.
+  const agreementBlock = suggestedAgreements.length
+    ? `\nEA/EP NUMBERS ON FILE FOR THIS ACCOUNT (matched to this meeting by keyword): ${suggestedAgreements.map((g) => `${g.type} ${g.number}`).join(", ")}. In the SFDC Activity Entry, output an "**EA/EP Number(s):**" line listing the one(s) relevant to what this meeting was actually about, copied verbatim. If more than one clearly applies, list all. Do not invent or alter numbers, and do not list a number if nothing in the meeting relates to it.`
+    : `\nNo EA/EP numbers are on file for this account. In the SFDC Activity Entry, output "**EA/EP Number(s):** None on file".`;
 
   const speakerGuidance = looksSpeakerLabeled(transcript)
     ? `
@@ -125,18 +132,20 @@ A Salesforce-ready activity entry for this meeting, following the rules below. O
 
 **Type:** <one approved type>
 **Subtype:** <matching subtype from that type's list>
+**EA/EP Number(s):** <relevant number(s) from the list below, or "None on file">
 
 **Summary/Notes:**
 Summary: <what was covered and what happened>
 Outcomes: <explicit outcomes, or "None stated">
 Next steps: <the CSM's own 1-3 owned actions, or "None">
-${SFDC_ACTIVITY_RULES}`;
+${SFDC_ACTIVITY_RULES}
+${agreementBlock}`;
 }
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { transcript, meetingTitle, apiKey, model } = body;
+    const { transcript, meetingTitle, apiKey, model, suggestedAgreements = [] } = body;
 
     if (!transcript || transcript.trim().length === 0) {
       return NextResponse.json({ error: "Transcript is required" }, { status: 400 });
@@ -156,7 +165,7 @@ export async function POST(request) {
       model: model || "claude-sonnet-4-6",
       max_tokens: 9216,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle) }],
+      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle, suggestedAgreements) }],
     });
 
     const readable = new ReadableStream({

@@ -14,7 +14,7 @@ import SanitizeReview from "@/components/SanitizeReview";
 import SpeakerReview from "@/components/SpeakerReview";
 import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
 import { calcCost, formatCost } from "@/lib/pricing";
-import { matchVaultFolder, DEFAULT_ACCOUNTS } from "@/lib/accounts";
+import { matchVaultFolder, detectAccount, suggestAgreements, DEFAULT_ACCOUNTS } from "@/lib/accounts";
 import { looksSpeakerLabeled } from "@/lib/speakers";
 
 export default function Home() {
@@ -291,6 +291,13 @@ export default function Home() {
       ? applyReplacements(corrected, replacements)
       : corrected;
 
+    // Match this account's EA/EP numbers to the raw transcript by keyword so
+    // they can be suggested in the SFDC entry. Done client-side on the
+    // original text (not the pseudonymized copy) so keyword matching is exact.
+    const acct = detectAccount(selectedFolder, settings.accounts);
+    const account = (settings.accounts || []).find((a) => a.name === acct.name);
+    const suggestedAgreements = account ? suggestAgreements(transcript, account) : [];
+
     setProcessing(true);
     try {
       const res = await fetch("/api/process", {
@@ -301,6 +308,7 @@ export default function Home() {
           meetingTitle,
           apiKey: settings.apiKey || undefined,
           model,
+          suggestedAgreements,
         }),
       });
       if (!res.ok) {
