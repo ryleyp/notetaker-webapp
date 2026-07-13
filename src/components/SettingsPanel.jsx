@@ -1,7 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { DEFAULT_ACCOUNTS } from "@/lib/accounts";
+
+const CONFIG_VERSION = 1;
+
+// Turn a persisted account (array fields) back into a form row (text fields).
+function accountToFormRow(a) {
+  return {
+    name: a.name || "",
+    archiveFolder: a.archiveFolder || "",
+    aliasesText: (a.aliases || []).join(", "),
+    keywordsText: (a.keywords || []).join(", "),
+    agreements: (a.agreements || []).map((g) => ({
+      type: g.type === "EP" ? "EP" : "EA",
+      number: g.number || "",
+      keywordsText: (g.keywords || []).join(", "),
+    })),
+  };
+}
 
 export default function SettingsPanel({ settings, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -11,19 +28,8 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     model: settings.model || "claude-haiku-4-5",
     replacements: settings.replacements || [],
     corrections: settings.corrections || [],
-    // Edit aliases as a comma-separated string; split into an array on save.
-    accounts: (settings.accounts?.length ? settings.accounts : DEFAULT_ACCOUNTS).map((a) => ({
-      name: a.name || "",
-      archiveFolder: a.archiveFolder || "",
-      aliasesText: (a.aliases || []).join(", "),
-      keywordsText: (a.keywords || []).join(", "),
-      // EA/EP agreement numbers, each tied to keywords that identify it.
-      agreements: (a.agreements || []).map((g) => ({
-        type: g.type || "EA",
-        number: g.number || "",
-        keywordsText: (g.keywords || []).join(", "),
-      })),
-    })),
+    // Edit aliases/keywords as comma-separated strings; split on save.
+    accounts: (settings.accounts?.length ? settings.accounts : DEFAULT_ACCOUNTS).map(accountToFormRow),
   });
   const [newFind, setNewFind] = useState("");
   const [newReplace, setNewReplace] = useState("");
@@ -35,6 +41,9 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
   const [suggestions, setSuggestions] = useState(null); // { account: [{term,count}] }
   const [suggestError, setSuggestError] = useState(null);
   const [pickedTerms, setPickedTerms] = useState(new Set()); // "account||term"
+  const [includeKeyInExport, setIncludeKeyInExport] = useState(false);
+  const [importMsg, setImportMsg] = useState(null); // { ok, message }
+  const importInputRef = useRef(null);
 
   function formAccounts() {
     return form.accounts
@@ -192,8 +201,10 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     }));
   }
 
-  function handleSave() {
-    const accounts = form.accounts
+  // Convert the form's account rows (with comma-separated text fields) back
+  // into the canonical persisted account shape.
+  function serializeAccounts() {
+    return form.accounts
       .filter((a) => a.name.trim())
       .map((a) => ({
         name: a.name.trim(),
@@ -208,6 +219,9 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
             keywords: g.keywordsText.split(",").map((s) => s.trim()).filter(Boolean),
           })),
       }));
+  }
+
+  function handleSave() {
     onSave({
       vaultPath: form.vaultPath.trim(),
       transcriptsPath: form.transcriptsPath.trim(),
@@ -215,8 +229,73 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       model: form.model,
       replacements: form.replacements,
       corrections: form.corrections,
-      accounts,
+      accounts: serializeAccounts(),
     });
+  }
+
+  // Download the current (in-form, unsaved-edits-included) config as JSON.
+  // API key is excluded unless the user opts in — it's a credential and the
+  // glossary already contains real names, so the file is sensitive either way.
+  function handleExport() {
+    const config = {
+      _type: "notetaker-settings",
+      version: CONFIG_VERSION,
+      exportedAt: new Date().toISOString(),
+      vaultPath: form.vaultPath.trim(),
+      transcriptsPath: form.transcriptsPath.trim(),
+      model: form.model,
+      replacements: form.replacements,
+      corrections: form.corrections,
+      accounts: serializeAccounts(),
+      ...(includeKeyInExport && form.apiKey.trim() ? { apiKey: form.apiKey.trim() } : {}),
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `notetaker-settings-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImportFile(file) {
+    if (!file) return;
+    setImportMsg(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const cfg = JSON.parse(e.target.result);
+        if (cfg._type && cfg._type !== "notetaker-settings") {
+          throw new Error("This file isn't a Notetaker settings export.");
+        }
+        setForm((f) => ({
+          ...f,
+          vaultPath: typeof cfg.vaultPath === "string" ? cfg.vaultPath : f.vaultPath,
+          transcriptsPath: typeof cfg.transcriptsPath === "string" ? cfg.transcriptsPath : f.transcriptsPath,
+          model: cfg.model || f.model,
+          apiKey: typeof cfg.apiKey === "string" && cfg.apiKey ? cfg.apiKey : f.apiKey,
+          replacements: Array.isArray(cfg.replacements) ? cfg.replacements : f.replacements,
+          corrections: Array.isArray(cfg.corrections) ? cfg.corrections : f.corrections,
+          accounts: Array.isArray(cfg.accounts) && cfg.accounts.length
+            ? cfg.accounts.map(accountToFormRow)
+            : f.accounts,
+        }));
+        const counts = [
+          Array.isArray(cfg.accounts) ? `${cfg.accounts.length} accounts` : null,
+          Array.isArray(cfg.replacements) ? `${cfg.replacements.length} replacements` : null,
+          Array.isArray(cfg.corrections) ? `${cfg.corrections.length} corrections` : null,
+        ].filter(Boolean).join(", ");
+        setImportMsg({ ok: true, message: `Loaded ${counts || "config"}. Review, then click Save Settings to apply.` });
+        setTestResult(null);
+      } catch (err) {
+        setImportMsg({ ok: false, message: `Could not import: ${err.message}` });
+      }
+    };
+    reader.onerror = () => setImportMsg({ ok: false, message: "Could not read the file." });
+    reader.readAsText(file);
   }
 
   return (
@@ -231,6 +310,40 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       </div>
 
       <div className="space-y-5">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Backup &amp; transfer</p>
+              <p className="text-xs text-gray-500">Export all settings (accounts, keywords, EA/EP numbers, glossary, corrections) to a file, or import one on another machine.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={handleExport} className="btn-secondary text-xs whitespace-nowrap">Export config</button>
+              <button onClick={() => importInputRef.current?.click()} className="btn-secondary text-xs whitespace-nowrap">Import config</button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => { handleImportFile(e.target.files[0]); e.target.value = ""; }}
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 mt-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeKeyInExport}
+              onChange={(e) => setIncludeKeyInExport(e.target.checked)}
+              className="w-3.5 h-3.5 rounded accent-obsidian-600"
+            />
+            Include API key in export (the file also contains real names from your glossary — keep it private)
+          </label>
+          {importMsg && (
+            <p className={`text-xs mt-2 ${importMsg.ok ? "text-green-600" : "text-red-600"}`}>
+              {importMsg.ok ? "✓ " : "✗ "}{importMsg.message}
+            </p>
+          )}
+        </div>
+
         <div>
           <label className="label">Obsidian Vault Path</label>
           <p className="text-xs text-gray-500 mb-2">
