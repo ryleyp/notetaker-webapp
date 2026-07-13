@@ -59,6 +59,21 @@ export default function Home() {
   const [sfdcGenerating, setSfdcGenerating] = useState(false);
   const [sfdcError, setSfdcError] = useState(null);
   const [sfdcCost, setSfdcCost] = useState(null);
+  // Whether to also produce SFDC activity entries when generating notes.
+  // Off by default (extra API cost); choice persisted across sessions.
+  const [sfdcEnabled, setSfdcEnabled] = useState(false);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("sfdc-activity-enabled");
+      if (v !== null) setSfdcEnabled(v === "true");
+    } catch {}
+  }, []);
+
+  function toggleSfdcEnabled(next) {
+    setSfdcEnabled(next);
+    try { localStorage.setItem("sfdc-activity-enabled", String(next)); } catch {}
+  }
 
   useEffect(() => {
     let base;
@@ -348,7 +363,7 @@ export default function Home() {
       : corrected;
 
     // Kick off SFDC activity generation in parallel — doesn't block notes.
-    doGenerateSfdc(sanitizedTranscript, replacements);
+    if (sfdcEnabled) doGenerateSfdc(sanitizedTranscript, replacements);
 
     setProcessing(true);
     try {
@@ -689,6 +704,16 @@ export default function Home() {
 
               {!pendingReview && (
                 <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sfdcEnabled}
+                    onChange={(e) => toggleSfdcEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded accent-obsidian-600"
+                  />
+                  Also generate SFDC activity entries
+                  <span className="text-xs text-gray-400">(extra Claude call — Type / Subtype / Summary to paste into Salesforce)</span>
+                </label>
                 <div className="flex items-center gap-3">
                   <div className="flex rounded-lg border border-gray-200 bg-white overflow-hidden flex-shrink-0">
                     {[
