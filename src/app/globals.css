@@ -165,6 +165,10 @@
 
 /* Status colors — teal */
 .dark .text-teal-600 { color: #2dd4bf; }
+.dark .text-teal-700 { color: #2dd4bf; }
+.dark .bg-teal-50 { background-color: rgba(13, 148, 136, 0.12); }
+.dark .bg-teal-100 { background-color: rgba(13, 148, 136, 0.2); }
+.dark .border-teal-200 { border-color: rgba(13, 148, 136, 0.3); }
 
 /* Obsidian (brand teal) tints */
 .dark .bg-obsidian-50 { background-color: rgba(6, 148, 148, 0.15); }

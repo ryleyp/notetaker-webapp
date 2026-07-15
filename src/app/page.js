@@ -48,6 +48,7 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [savedPath, setSavedPath] = useState("");
   const [todosSaved, setTodosSaved] = useState(null); // { count, path } | null
+  const [sfdcReportSaved, setSfdcReportSaved] = useState(null); // { path } | null
   const [noteCost, setNoteCost] = useState(null);
   const [savingTranscript, setSavingTranscript] = useState(false);
   const [transcriptSaved, setTranscriptSaved] = useState(false);
@@ -396,6 +397,22 @@ export default function Home() {
       } catch {
         // Todos extraction is best-effort
       }
+
+      // Append the SFDC Activity Entry to this week's report file (same
+      // weekly-file pattern as todos: Reports/<monday> - SFDC Activity Report.md)
+      try {
+        const reportRes = await fetch("/api/sfdc-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes, vaultPath: settings.vaultPath, meetingTitle }),
+        });
+        const reportData = await reportRes.json();
+        if (reportData.savedPath) {
+          setSfdcReportSaved({ path: reportData.savedPath });
+        }
+      } catch {
+        // Weekly report append is best-effort
+      }
     } catch (e) {
       alert(`Failed to save: ${e.message}`);
     } finally {
@@ -455,6 +472,7 @@ export default function Home() {
     setSaved(false);
     setSavedPath("");
     setTodosSaved(null);
+    setSfdcReportSaved(null);
     setNoteCost(null);
     setProcessError(null);
     setPendingReview(null);
@@ -544,6 +562,7 @@ export default function Home() {
                 savedPath={savedPath}
                 streaming={processing}
                 todosSaved={todosSaved}
+                sfdcReportSaved={sfdcReportSaved}
                 cost={noteCost}
               />
             </div>
