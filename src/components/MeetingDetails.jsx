@@ -1,6 +1,6 @@
 "use client";
 
-export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
+export default function MeetingDetails({ meetingTitle, setMeetingTitle, meetingContext, setMeetingContext }) {
   return (
     <div className="card p-6">
       <div className="flex items-center gap-3 mb-5">
@@ -20,6 +20,22 @@ export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
           value={meetingTitle}
           onChange={(e) => setMeetingTitle(e.target.value)}
           autoFocus
+        />
+      </div>
+
+      <div className="mt-4">
+        <label className="label">Additional Context &amp; Your Notes <span className="font-normal text-gray-400">(optional)</span></label>
+        <p className="text-xs text-gray-500 mb-2">
+          Anything the transcript won't say on its own — who attended and their roles, what the meeting was
+          about, account background, follow-ups from a prior call, or your own handwritten notes from the
+          meeting. This gets woven into the generated notes and SFDC entry alongside the transcript.
+        </p>
+        <textarea
+          className="input resize-y text-xs leading-relaxed"
+          rows={4}
+          placeholder={"e.g. Quarterly sync with Gokul (LM MFC EA admin) and Jordan. Follow-up to the June SystemLink migration briefing.\nMy notes: Gokul wants SL Pro rollout confirmed before August; sounded frustrated about Data Bridge re-ingestion."}
+          value={meetingContext}
+          onChange={(e) => setMeetingContext(e.target.value)}
         />
       </div>
 

@@ -48,7 +48,7 @@ APPROVED TYPE AND SUBTYPE OPTIONS (Subtype must come from the chosen Type's list
 
 CLASSIFICATION RULES
 - Identify the primary purpose of the meeting before choosing a type.
-- Use the most specific valid type and subtype the transcript supports.
+- Use the most specific valid type and subtype the transcript (or the CSM's context/notes) supports.
 - Subtype must come from the chosen type's list; if none fit, use "Other" within that type.
 - Top-level "Other" type always outputs "Subtype: Other".
 - A product-led session (NI presenting/demoing) is a demo, not a User Group. "User Group" means customer-led.
@@ -64,11 +64,22 @@ SUMMARY/NOTES RULES
 - Lead with outcome and business value, not meeting logistics.
 - Outcomes: if the transcript has no clear outcome, write "Outcomes: None stated" — never invent one.
 - Next steps: only the CSM's own owned actions (skip customer/other-team to-dos unless they gate a CSM action), top 1-3, phrased as concrete actions. If none, write "Next steps: None".
-- Do not invent attendees, regions, outcomes, or next steps that aren't supported by the transcript.
+- Do not invent attendees, regions, outcomes, or next steps that aren't supported by the transcript or the CSM's own context/notes.
 - Exclude raw internal complaints/blame, speculative pricing or forecast figures, and anything the account team wouldn't want visible in CRM.`;
 
-function buildPrompt(transcript, meetingTitle, suggestedAgreements = []) {
+function buildPrompt(transcript, meetingTitle, suggestedAgreements = [], meetingContext = "") {
   const title = meetingTitle || "Meeting Notes";
+
+  // Extra background and/or the CSM's own handwritten notes, typed in by the
+  // CSM alongside the transcript. Treated as a trusted second source.
+  const contextBlock = meetingContext.trim()
+    ? `
+CONTEXT & NOTES FROM THE CSM (trusted supplemental source — the CSM wrote this themselves):
+${meetingContext.trim()}
+
+Use this to interpret the transcript (attendees, roles, account background, meeting purpose) AND as source material in its own right: observations, decisions, or action items that appear only in the CSM's notes belong in the meeting notes and SFDC entry just like transcript content. If the CSM's notes and the transcript conflict, prefer the transcript for what was literally said, but keep the CSM's framing of why it matters. Do not quote the CSM's notes as if someone said them aloud in the meeting.
+`
+    : "";
 
   // EA/EP numbers matched to this meeting by keyword (matching done client-side
   // against the raw transcript). Listed in the SFDC entry so they can be copied
@@ -86,7 +97,7 @@ This transcript has been segmented by speaker — each turn is preceded by a lab
   return `Please analyze this meeting transcript and create detailed meeting notes.
 
 Meeting Title: ${title}
-${speakerGuidance}
+${speakerGuidance}${contextBlock}
 ---
 TRANSCRIPT:
 ${transcript}
@@ -152,7 +163,7 @@ ${agreementBlock}`;
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { transcript, meetingTitle, apiKey, model, suggestedAgreements = [] } = body;
+    const { transcript, meetingTitle, apiKey, model, suggestedAgreements = [], meetingContext = "" } = body;
 
     if (!transcript || transcript.trim().length === 0) {
       return NextResponse.json({ error: "Transcript is required" }, { status: 400 });
@@ -172,7 +183,7 @@ export async function POST(request) {
       model: model || "claude-sonnet-4-6",
       max_tokens: 9216,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle, suggestedAgreements) }],
+      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle, suggestedAgreements, meetingContext) }],
     });
 
     const readable = new ReadableStream({

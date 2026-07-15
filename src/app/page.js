@@ -25,6 +25,7 @@ export default function Home() {
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
   const [transcript, setTranscript] = useState("");
+  const [meetingContext, setMeetingContext] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
   const [model, setModel] = useState("claude-haiku-4-5");
 
@@ -195,8 +196,9 @@ export default function Home() {
 
     // Pre-apply known corrections and replacements — the scan only sees
     // pseudonymized versions of already-known names.
+    const scanSource = meetingContext.trim() ? `${transcript}\n${meetingContext}` : transcript;
     const preSanitized = applyReplacements(
-      applyCorrections(transcript, settings.corrections || []),
+      applyCorrections(scanSource, settings.corrections || []),
       savedReplacements
     );
 
@@ -291,6 +293,10 @@ export default function Home() {
     const sanitizedTranscript = replacements.length
       ? applyReplacements(corrected, replacements)
       : corrected;
+    const correctedContext = applyCorrections(meetingContext, settings.corrections || []);
+    const sanitizedContext = replacements.length
+      ? applyReplacements(correctedContext, replacements)
+      : correctedContext;
 
     // Match this account's EA/EP numbers to the raw transcript by keyword so
     // they can be suggested in the SFDC entry. Done client-side on the
@@ -306,6 +312,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           transcript: sanitizedTranscript,
+          meetingContext: sanitizedContext,
           meetingTitle,
           apiKey: settings.apiKey || undefined,
           model,
@@ -467,6 +474,7 @@ export default function Home() {
 
   function handleNewNote() {
     setTranscript("");
+    setMeetingContext("");
     setMeetingTitle("");
     setNotes("");
     setSaved(false);
@@ -571,6 +579,8 @@ export default function Home() {
               <MeetingDetails
                 meetingTitle={meetingTitle}
                 setMeetingTitle={setMeetingTitle}
+                meetingContext={meetingContext}
+                setMeetingContext={setMeetingContext}
               />
 
               <TranscriptInput
