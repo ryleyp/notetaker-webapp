@@ -133,6 +133,19 @@ Flag the most important items for NI Software's Customer Success team. Include: 
 
 ---
 
+## Sentiment & Vibe
+
+Read between the lines and capture the human dynamics of the meeting — the things a CSM should remember about relationships, not just facts. Cover whichever of these the transcript actually supports (skip the rest):
+- **Overall tone** — one line: how did the meeting feel? (collaborative, tense, rushed, energized, going through the motions...)
+- **People** — who was enthusiastic, skeptical, frustrated, disengaged, or under pressure, and about what. Note shifts mid-meeting ("warmed up once X came up").
+- **Product relationships** — attitudes toward specific NI (or competitor) products: genuine enthusiasm vs. polite interest, fatigue, distrust, or growing reliance.
+- **Team & org dynamics** — tension or deference between attendees, who defers to whom, internal champions or blockers, signs of organizational pressure (budget, deadlines, reorgs) leaking into the conversation.
+- **Callouts** — anything worth remembering before the next interaction: a sore subject to avoid, a win to reference, a person who needs extra attention, an unspoken concern that never got voiced directly.
+
+Ground every observation in something actually said or evident in the transcript — cite the moment briefly ("pushed back twice on the migration timeline"). Do not psychoanalyze or invent feelings that aren't supported. If the transcript genuinely gives no sentiment signal, write "No notable sentiment signals in this transcript."
+
+---
+
 ## Action Items
 
 List all action items as Markdown task checkboxes. For each item include who owns it and a due date if mentioned. Format:
