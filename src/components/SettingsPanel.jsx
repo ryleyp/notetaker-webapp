@@ -377,7 +377,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
         <div>
           <label className="label">Transcripts Archive Path</label>
           <p className="text-xs text-gray-500 mb-2">
-            Folder where raw transcripts are saved after each generation. Subfolders are created automatically by account (LM Transcripts, L3 Transcripts, NGC Transcripts, Frontgrade Transcripts, Internal Transcripts).
+            Folder where raw transcripts are saved after each generation. Change this to move where transcripts go. Subfolders are created automatically per account using each account's “Archive folder” name below (unmatched meetings go to Internal Transcripts). This folder also holds the portable config/glossary files.
           </p>
           <input
             type="text"

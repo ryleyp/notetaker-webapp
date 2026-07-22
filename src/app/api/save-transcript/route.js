@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { detectAccount } from "@/lib/accounts";
 
+// Legacy fallback when the caller doesn't send the accounts config.
 function mapFolder(selectedFolder) {
   const f = (selectedFolder || "").toLowerCase();
   if (f.includes("lockheed")) return "LM Transcripts";
@@ -13,12 +15,17 @@ function mapFolder(selectedFolder) {
 
 export async function POST(request) {
   try {
-    const { transcript, meetingTitle, transcriptsPath, folder } = await request.json();
+    const { transcript, meetingTitle, transcriptsPath, folder, accounts } = await request.json();
     if (!transcript || !meetingTitle || !transcriptsPath) {
       return NextResponse.json({ ok: true, skipped: true });
     }
 
-    const archiveFolder = mapFolder(folder);
+    // Subfolder comes from the matched account's "Archive folder" setting
+    // (editable per account in Settings); hardcoded names are only a
+    // fallback for callers that don't send the accounts config.
+    const archiveFolder =
+      (accounts?.length ? detectAccount(folder, accounts).archiveFolder : null) || mapFolder(folder);
+
     const resolvedBase = path.resolve(transcriptsPath);
     const dir = path.join(resolvedBase, archiveFolder);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

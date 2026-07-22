@@ -360,6 +360,7 @@ export default function Home() {
             meetingTitle,
             transcriptsPath: settings.transcriptsPath,
             folder: selectedFolder || undefined,
+            accounts: settings.accounts || [],
           }),
         }).catch(() => {});
       }
@@ -462,6 +463,7 @@ export default function Home() {
             meetingTitle: title,
             transcriptsPath: settings.transcriptsPath,
             folder: folderPath || undefined,
+            accounts: settings.accounts || [],
           }),
         }).catch(() => {});
       }
