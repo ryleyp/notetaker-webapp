@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { applyCorrections, applyReplacements } from "@/lib/sanitize";
+import { assertTrustedRequest } from "@/lib/requestSafety";
+import { BATCH_TEMPORAL_RULE, TEMPORAL_ACCURACY_RULE, dateSortValue } from "@/lib/synthesisPolicy";
 
 function buildExclusionList(accountName, allAccounts) {
   if (!allAccounts?.length) return "";
@@ -77,7 +79,7 @@ Generate the Account Status document using EXACTLY this structure. Be specific �
 
 **Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
-**Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
+${TEMPORAL_ACCURACY_RULE}
 
 # ${acct ? `${acct} ` : ""}Account Status — ${rangeLabel}
 
@@ -271,7 +273,7 @@ Generate the ${p} Account Status using EXACTLY this structure. Be specific — r
 
 **Citation rule:** When referencing a specific note, cite it by its session date (e.g. "per the 2026-05-14 meeting" or "as of 2026-04-02"). Do NOT use "Source 1", "Source 2", or any numbered references.
 
-**Temporal accuracy rule:** Sources are dated. When a newer source contradicts, reverses, or updates something in an older source, the newer information is authoritative. Call out the change explicitly — do not silently overwrite older facts. Example: "As of [date], this changed from X to Y."
+${TEMPORAL_ACCURACY_RULE}
 
 # ${p} Account Status${acct ? ` — ${acct}` : ""} — ${rangeLabel}
 
@@ -493,8 +495,135 @@ function scrubForbiddenKeywords(notes, accountName, allAccounts) {
   }));
 }
 
+function combineUsage(a = {}, b = {}) {
+  return {
+    input_tokens: (a.input_tokens || 0) + (b.input_tokens || 0),
+    output_tokens: (a.output_tokens || 0) + (b.output_tokens || 0),
+  };
+}
+
+function noteDateKey(note) {
+  return dateSortValue(note.date);
+}
+
+function noteRangeLabel(notes) {
+  const dates = notes.map((n) => n.date).filter(Boolean).sort();
+  if (!dates.length) return "undated older notes";
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  return first === last ? first : `${first} to ${last}`;
+}
+
+function groupNotesForSummary(notes, model) {
+  const batchBudget = contextTokens(model) >= 1_000_000 ? 260_000 : 90_000;
+  const chronological = [...notes].sort((a, b) => noteDateKey(a).localeCompare(noteDateKey(b)));
+  const batches = [];
+  let current = [];
+  let currentSize = 0;
+
+  for (const note of chronological) {
+    const size = (note.title?.length || 0) + (note.content?.length || 0) + 200;
+    if (current.length && currentSize + size > batchBudget) {
+      batches.push(current);
+      current = [];
+      currentSize = 0;
+    }
+    current.push(note);
+    currentSize += size;
+  }
+
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+function buildBatchSummaryPrompt(notes, productFocus, accountName) {
+  const label = noteRangeLabel(notes);
+  const scope = productFocus
+    ? `${productFocus.name}${accountName ? ` for ${accountName}` : ""}`
+    : `${accountName || "the selected account"} account status`;
+  const noteBlocks = notes
+    .map((n) => `### ${n.date || "undated"} — ${n.title}\n\n${n.content}`)
+    .join("\n\n---\n\n");
+
+  return `Compress these older source notes for a later ${scope} report.
+
+Preserve facts, dates, owners, open/closed action items, product/version details, risks, decisions, and relationship context. Do not invent anything.
+
+${BATCH_TEMPORAL_RULE}
+
+Return Markdown with this structure only:
+
+# Source Summary — ${label}
+
+## Current Facts From This Batch
+- [dated facts, newest/current interpretation where possible]
+
+## Updates And Corrections Within This Batch
+- [newer date] corrected/updated [older date]: [what changed]
+
+## Open Items Still Relevant
+- [unchecked or unresolved item] — **Owner:** [owner] | **From:** [date]
+
+## Historical Context
+- [older context that may still matter, clearly marked as historical]
+
+---
+SOURCES:
+
+${noteBlocks}`;
+}
+
+async function summarizeOverflowNotes(client, model, notes, productFocus, accountName) {
+  if (!notes.length) return { summaryNotes: [], usage: { input_tokens: 0, output_tokens: 0 } };
+
+  const batches = groupNotesForSummary(notes, model);
+  let usage = { input_tokens: 0, output_tokens: 0 };
+  const summaryNotes = [];
+
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    const msg = await client.messages.create({
+      model,
+      max_tokens: Math.min(maxOutputTokens(model), 4096),
+      system: "You compress dated meeting notes for a later synthesis step. Preserve dated changes and newest-current facts. Respond with only Markdown.",
+      messages: [{ role: "user", content: buildBatchSummaryPrompt(batch, productFocus, accountName) }],
+    });
+
+    usage = combineUsage(usage, msg.usage);
+    summaryNotes.push({
+      filename: `summary-${i + 1}.md`,
+      date: batch[batch.length - 1]?.date || batch[0]?.date || "0000-00-00",
+      title: `Compressed older context (${noteRangeLabel(batch)})`,
+      content: msg.content[0]?.text || "",
+      source: "summary",
+      sourceLabel: "Compressed older notes",
+      _summaryCount: batch.length,
+    });
+  }
+
+  return { summaryNotes, usage };
+}
+
+function tagSameDayNotes(notes) {
+  const dateCounts = {};
+  for (const n of notes) dateCounts[n.date] = (dateCounts[n.date] || 0) + 1;
+  const dateIndex = {};
+  return notes.map((n) => {
+    if (dateCounts[n.date] > 1) {
+      dateIndex[n.date] = (dateIndex[n.date] || 0) + 1;
+      const pos = dateIndex[n.date];
+      const total = dateCounts[n.date];
+      const label = pos === 1 ? " *(earliest same-day meeting)*" : pos === total ? " *(latest same-day meeting)*" : ` *(same-day meeting ${pos} of ${total})*`;
+      return { ...n, _dayLabel: label };
+    }
+    return { ...n, _dayLabel: "" };
+  });
+}
+
 export async function POST(request) {
   try {
+    assertTrustedRequest(request);
+
     const body = await request.json();
     const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, accountName, allAccounts = [] } = body;
 
@@ -508,8 +637,25 @@ export async function POST(request) {
       content: applyReplacements(applyCorrections(n.content, corrections), replacements),
     }));
 
+    const key = apiKey || process.env.ANTHROPIC_API_KEY;
+    if (!key) {
+      return new Response(JSON.stringify({ error: "Anthropic API key is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+
+    const selectedModel = model || "claude-sonnet-4-6";
+    const client = new Anthropic({ apiKey: key });
     const scrubbedNotes = scrubForbiddenKeywords(sanitizedNotes, accountName, allAccounts);
-    const { kept, dropped } = fitNotes(scrubbedNotes, model || "claude-sonnet-4-6");
+    let { kept, dropped } = fitNotes(scrubbedNotes, selectedModel);
+    let summarizedCount = 0;
+    let mapReduceUsage = { input_tokens: 0, output_tokens: 0 };
+
+    if (dropped > 0) {
+      const overflowNotes = scrubbedNotes.slice(kept.length);
+      const summarized = await summarizeOverflowNotes(client, selectedModel, overflowNotes, productFocus, accountName);
+      summarizedCount = overflowNotes.length;
+      mapReduceUsage = summarized.usage;
+      ({ kept, dropped } = fitNotes([...kept, ...summarized.summaryNotes], selectedModel));
+    }
 
     // Reverse to chronological order (oldest → newest) for the prompt.
     // fitNotes works newest-first to drop oldest when over budget; once
@@ -517,26 +663,7 @@ export async function POST(request) {
     const chronological = [...kept].reverse();
 
     // Tag same-day notes with position labels so Claude knows which came first.
-    const dateCounts = {};
-    for (const n of chronological) dateCounts[n.date] = (dateCounts[n.date] || 0) + 1;
-    const dateIndex = {};
-    const taggedNotes = chronological.map((n) => {
-      if (dateCounts[n.date] > 1) {
-        dateIndex[n.date] = (dateIndex[n.date] || 0) + 1;
-        const pos = dateIndex[n.date];
-        const total = dateCounts[n.date];
-        const label = pos === 1 ? " *(earliest same-day meeting)*" : pos === total ? " *(latest same-day meeting)*" : ` *(same-day meeting ${pos} of ${total})*`;
-        return { ...n, _dayLabel: label };
-      }
-      return { ...n, _dayLabel: "" };
-    });
-
-    const key = apiKey || process.env.ANTHROPIC_API_KEY;
-    if (!key) {
-      return new Response(JSON.stringify({ error: "Anthropic API key is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
-    }
-
-    const client = new Anthropic({ apiKey: key });
+    const taggedNotes = tagSameDayNotes(chronological);
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -544,9 +671,9 @@ export async function POST(request) {
         const send = (obj) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         try {
           const messageStream = client.messages.stream({
-            model: model || "claude-sonnet-4-6",
-            max_tokens: maxOutputTokens(model || "claude-sonnet-4-6"),
-            system: "You are an expert at synthesizing meeting notes into clear, actionable executive summaries. Respond with only the Markdown document — no preamble.",
+            model: selectedModel,
+            max_tokens: maxOutputTokens(selectedModel),
+            system: "You are an expert at synthesizing dated meeting notes into clear, actionable executive summaries. Newer dated sources override older dated sources when they conflict, resolve, or update a fact. Respond with only the Markdown document — no preamble.",
             messages: [{
               role: "user",
               content: productFocus
@@ -562,7 +689,14 @@ export async function POST(request) {
           }
 
           const final = await messageStream.finalMessage();
-          send({ type: "done", noteCount: kept.length, droppedCount: dropped, usage: final.usage, model: model || "claude-sonnet-4-6" });
+          send({
+            type: "done",
+            noteCount: kept.length,
+            droppedCount: dropped,
+            summarizedCount,
+            usage: combineUsage(final.usage, mapReduceUsage),
+            model: selectedModel,
+          });
         } catch (error) {
           send({ type: "error", message: error?.message || "Synthesis failed" });
         } finally {
@@ -579,6 +713,6 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error?.message || "Synthesis failed" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: error?.message || "Synthesis failed" }), { status: error?.status || 500, headers: { "Content-Type": "application/json" } });
   }
 }

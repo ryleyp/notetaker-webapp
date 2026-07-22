@@ -1,75 +1,53 @@
 "use client";
 
-import { useState } from "react";
-
-function renderMarkdown(text) {
-  const lines = text.split("\n");
-  const result = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // Inline tag line (e.g. "#austin #texas") — render as pills
-    if (/^(#[a-z][a-z0-9-]*\s*)+$/i.test(line.trim()) && line.trim().startsWith("#")) {
-      const tags = line.trim().split(/\s+/).map((t) => t.slice(1)).filter(Boolean);
-      const tagPills = tags
-        .map((t) => `<span style="background:#FFF3C4;color:#7A3500;" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mr-1 mb-1">#${escapeHtml(t)}</span>`)
-        .join("");
-      result.push(`<div class="flex flex-wrap mb-2">${tagPills}</div>`);
-      i++;
-      continue;
-    }
-
-    if (line.startsWith("# ")) {
-      result.push(`<h1>${escapeHtml(line.slice(2))}</h1>`);
-    } else if (line.startsWith("## ")) {
-      result.push(`<h2>${escapeHtml(line.slice(3))}</h2>`);
-    } else if (line.startsWith("### ")) {
-      result.push(`<h3>${escapeHtml(line.slice(4))}</h3>`);
-    } else if (line.startsWith("---")) {
-      result.push("<hr>");
-    } else if (line.startsWith("- [ ] ") || line.startsWith("- [x] ")) {
-      const checked = line.startsWith("- [x] ");
-      const content = formatInline(line.slice(6));
-      result.push(`<ul><li>${checked ? "✅" : "☐"} ${content}</li></ul>`);
-    } else if (line.startsWith("- ") || line.startsWith("* ")) {
-      result.push(`<ul><li>${formatInline(line.slice(2))}</li></ul>`);
-    } else if (line.trim() === "") {
-      result.push("<br>");
-    } else {
-      result.push(`<p>${formatInline(line)}</p>`);
-    }
-    i++;
-  }
-
-  // Merge consecutive ul elements
-  const merged = result
-    .join("\n")
-    .replace(/<\/ul>\n<ul>/g, "")
-    .replace(/<br>\n<br>/g, "<br>");
-
-  return merged;
-}
-
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function formatInline(text) {
-  return escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`(.+?)`/g, "<code>$1</code>");
-}
-
+import { Children, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { formatCost } from "@/lib/pricing";
 
-export default function NotesPreview({ notes, onSave, saving, saved, savedPath, streaming, todosSaved, cost }) {
+function textFromChildren(children) {
+  return Children.toArray(children)
+    .map((child) => (typeof child === "string" ? child : ""))
+    .join("");
+}
+
+function Paragraph({ children }) {
+  const text = textFromChildren(children).trim();
+  if (/^(#[a-z][a-z0-9-]*\s*)+$/i.test(text)) {
+    return (
+      <div className="mb-2 flex flex-wrap gap-1">
+        {text.split(/\s+/).map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{ background: "#FFF3C4", color: "#7A3500" }}
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  return <p>{children}</p>;
+}
+
+export default function NotesPreview({
+  notes,
+  onNotesChange,
+  onSave,
+  saving,
+  saved,
+  savedPath,
+  streaming,
+  onCancel,
+  onRetry,
+  canRetry,
+  todosSaved,
+  cost,
+}) {
   const [viewMode, setViewMode] = useState("preview");
+  const editable = typeof onNotesChange === "function";
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(notes).catch(() => {});
@@ -115,17 +93,45 @@ export default function NotesPreview({ notes, onSave, saving, saved, savedPath, 
           <button onClick={copyToClipboard} className="btn-secondary text-xs px-3 py-1.5">
             Copy
           </button>
+          {streaming && onCancel && (
+            <button onClick={onCancel} className="btn-secondary text-xs px-3 py-1.5">
+              Cancel
+            </button>
+          )}
+          {!streaming && canRetry && onRetry && (
+            <button onClick={onRetry} className="btn-secondary text-xs px-3 py-1.5">
+              Retry
+            </button>
+          )}
         </div>
       </div>
 
       <div className="p-6">
         {viewMode === "preview" ? (
-          <div
-            className="markdown-preview max-h-[600px] overflow-y-auto"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(notes) }}
+          <div className="markdown-preview max-h-[600px] overflow-y-auto">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: Paragraph,
+                a: ({ children, ...props }) => (
+                  <a {...props} target="_blank" rel="noreferrer">
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {notes}
+            </ReactMarkdown>
+          </div>
+        ) : editable ? (
+          <textarea
+            className="input min-h-[600px] resize-y font-mono text-xs leading-relaxed"
+            value={notes}
+            onChange={(e) => onNotesChange(e.target.value)}
+            spellCheck={false}
           />
         ) : (
-          <pre className="text-xs font-mono text-gray-700 whitespace-pre-wrap max-h-[600px] overflow-y-auto leading-relaxed">
+          <pre className="max-h-[600px] overflow-y-auto whitespace-pre-wrap text-xs font-mono leading-relaxed text-gray-700">
             {notes}
           </pre>
         )}

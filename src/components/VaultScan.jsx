@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function VaultScan({ settings, onSettingsClick }) {
   const [scanning, setScanning] = useState(false);
@@ -18,7 +19,7 @@ export default function VaultScan({ settings, onSettingsClick }) {
       const params = new URLSearchParams({ vaultPath: settings.vaultPath });
       if (settings.transcriptsPath) params.set("transcriptsPath", settings.transcriptsPath);
       if (settings.accounts?.length) params.set("accounts", JSON.stringify(settings.accounts));
-      const res = await fetch(`/api/scan-vault?${params}`);
+      const res = await apiFetch(`/api/scan-vault?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Scan failed");
       setResults(data);

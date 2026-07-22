@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { textHasAlias } from "@/lib/accounts";
+import { assertAllowedRoot } from "@/lib/pathAllowlist";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const MAX_FILES = 5000;
 
@@ -42,15 +44,31 @@ function walkDir(dir, basePath, locationLabel, fileList, counter) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const vaultPath = searchParams.get("vaultPath");
-  const transcriptsPath = searchParams.get("transcriptsPath") || "";
   const accountsParam = searchParams.get("accounts");
 
   if (!vaultPath) return NextResponse.json({ error: "vaultPath is required" }, { status: 400 });
 
+  try {
+    assertTrustedRequest(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid local session" },
+      { status: error?.status || 403 }
+    );
+  }
+
   let accounts = [];
   try { accounts = accountsParam ? JSON.parse(accountsParam) : []; } catch {}
 
-  const resolvedVault = path.resolve(vaultPath);
+  let resolvedVault;
+  try {
+    resolvedVault = assertAllowedRoot(vaultPath, "Vault path");
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid vault path" },
+      { status: error?.status || 500 }
+    );
+  }
   const counter = { n: 0 };
   const allFiles = [];
 

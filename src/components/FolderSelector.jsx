@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { StepBadge } from "@/components/MeetingDetails";
+import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
 
 export default function FolderSelector({ vaultPath, selectedFolder, onSelect, onSettingsClick }) {
   const [folders, setFolders] = useState([]);
@@ -13,7 +14,8 @@ export default function FolderSelector({ vaultPath, selectedFolder, onSelect, on
     if (!vaultPath) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/folders?vaultPath=${encodeURIComponent(vaultPath)}`)
+    approveLocalPaths({ vaultPath })
+      .then(() => apiFetch(`/api/folders?vaultPath=${encodeURIComponent(vaultPath)}`))
       .then((r) => r.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);

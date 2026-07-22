@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { calcCost } from "@/lib/pricing";
 import { detectAccount } from "@/lib/accounts";
 import { reverseReplacements } from "@/lib/sanitize";
+import { apiFetch } from "@/lib/apiClient";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -59,6 +60,9 @@ export default function AccountStatus({ settings, onSettingsClick }) {
   const [savedPath, setSavedPath] = useState("");
   const [synthCost, setSynthCost] = useState(null);
   const [droppedCount, setDroppedCount] = useState(0);
+  const [summarizedCount, setSummarizedCount] = useState(0);
+  const synthControllerRef = useRef(null);
+  const [lastSynthesisRequest, setLastSynthesisRequest] = useState(null);
 
   async function handleLoadNotes() {
     if (!settings.vaultPath) return;
@@ -87,8 +91,8 @@ export default function AccountStatus({ settings, onSettingsClick }) {
       ));
 
       const [notesRes, scanRes] = await Promise.all([
-        fetch(`/api/notes?${params}`),
-        aliases?.length ? fetch(`/api/scan-vault?${scanParams}`) : Promise.resolve(null),
+        apiFetch(`/api/notes?${params}`),
+        aliases?.length ? apiFetch(`/api/scan-vault?${scanParams}`) : Promise.resolve(null),
       ]);
 
       const notesData = await notesRes.json();
@@ -109,29 +113,24 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     }
   }
 
-  async function handleSynthesize() {
-    if (!loadedNotes?.length) return;
+  async function runSynthesisRequest(requestPayload) {
+    const controller = new AbortController();
+    synthControllerRef.current = controller;
+    setLastSynthesisRequest(requestPayload);
     setSynthesizing(true);
     setSynthError(null);
     setOutput("");
     setSaved(false);
     setShowConfirm(false);
     setDroppedCount(0);
+    setSummarizedCount(0);
 
     try {
-      const res = await fetch("/api/synthesize", {
+      const res = await apiFetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          notes: loadedNotes,
-          apiKey: settings.apiKey || undefined,
-          model,
-          today: TODAY,
-          replacements: settings.replacements || [],
-          corrections: settings.corrections || [],
-          accountName: detectAccount(selectedFolder, settings.accounts).name,
-          allAccounts: settings.accounts || [],
-        }),
+        signal: controller.signal,
+        body: JSON.stringify(requestPayload),
       });
 
       if (!res.ok) {
@@ -161,23 +160,55 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             setOutput(reps.length ? reverseReplacements(accumulated, reps) : accumulated);
             if (evt.usage) setSynthCost(calcCost(evt.usage, evt.model));
             if (evt.droppedCount) setDroppedCount(evt.droppedCount);
+            if (evt.summarizedCount) setSummarizedCount(evt.summarizedCount);
           } else if (evt.type === "error") {
             throw new Error(evt.message);
           }
         }
       }
     } catch (e) {
-      setSynthError(e.message);
+      setSynthError(e.name === "AbortError" ? "Synthesis canceled." : e.message);
     } finally {
+      if (synthControllerRef.current === controller) {
+        synthControllerRef.current = null;
+      }
       setSynthesizing(false);
     }
+  }
+
+  async function handleSynthesize() {
+    if (!loadedNotes?.length) return;
+    await runSynthesisRequest({
+      notes: loadedNotes,
+      apiKey: settings.apiKey || undefined,
+      model,
+      today: TODAY,
+      replacements: settings.replacements || [],
+      corrections: settings.corrections || [],
+      accountName: detectAccount(selectedFolder, settings.accounts).name,
+      allAccounts: settings.accounts || [],
+    });
+  }
+
+  function handleCancelSynthesis() {
+    synthControllerRef.current?.abort();
+  }
+
+  function handleRetrySynthesis() {
+    if (lastSynthesisRequest) runSynthesisRequest(lastSynthesisRequest);
+  }
+
+  function handleOutputChange(nextOutput) {
+    setOutput(nextOutput);
+    setSaved(false);
+    setSavedPath("");
   }
 
   async function handleSave() {
     if (!output || !settings.vaultPath) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/save", {
+      const res = await apiFetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -452,18 +483,27 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           </div>
           {droppedCount > 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              {droppedCount} older note{droppedCount !== 1 ? "s" : ""} were excluded to stay within the model's context limit. The summary covers your most recent notes.
+              {droppedCount} compressed source{droppedCount !== 1 ? "s" : ""} still could not fit within the model's context limit.
+            </p>
+          )}
+          {summarizedCount > 0 && (
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              {summarizedCount} older note{summarizedCount !== 1 ? "s" : ""} were compressed first so newer full notes and older context could both inform the report.
             </p>
           )}
           {output && (
             <NotesPreview
               notes={output}
+              onNotesChange={handleOutputChange}
               onSave={handleSave}
               saving={saving}
               saved={saved}
               savedPath={savedPath}
               cost={synthCost}
               streaming={synthesizing}
+              onCancel={handleCancelSynthesis}
+              onRetry={handleRetrySynthesis}
+              canRetry={!!lastSynthesisRequest && !synthesizing}
             />
           )}
           {synthesizing && !output && (

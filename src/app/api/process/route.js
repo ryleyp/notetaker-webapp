@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist. When given a meeting transcript, you produce highly detailed, structured meeting notes in Markdown format.
 
@@ -81,6 +82,8 @@ List the agreed-upon next steps, upcoming milestones, follow-up meetings, or pla
 
 export async function POST(request) {
   try {
+    assertTrustedRequest(request);
+
     const body = await request.json();
     const { transcript, meetingTitle, apiKey, model } = body;
 
@@ -105,28 +108,32 @@ export async function POST(request) {
       messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle) }],
     });
 
+    const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
+        const send = (obj) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         try {
           for await (const chunk of stream) {
             if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-              controller.enqueue(new TextEncoder().encode(chunk.delta.text));
+              send({ type: "delta", text: chunk.delta.text });
             }
           }
-          // Append usage as a tagged footer after all content
           const finalMsg = await stream.finalMessage();
-          controller.enqueue(
-            new TextEncoder().encode(`\n__USAGE__${JSON.stringify(finalMsg.usage)}`)
-          );
-          controller.close();
+          send({ type: "done", usage: finalMsg.usage, model: model || "claude-sonnet-4-6" });
         } catch (err) {
-          controller.error(err);
+          send({ type: "error", message: err?.message || "Processing failed" });
+        } finally {
+          controller.close();
         }
       },
     });
 
     return new Response(readable, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (error) {
     console.error("Error processing transcript:", error);

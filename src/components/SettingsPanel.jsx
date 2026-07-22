@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { DEFAULT_ACCOUNTS } from "@/lib/accounts";
+import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
 
 export default function SettingsPanel({ settings, onSave, onClose }) {
   const [form, setForm] = useState({
     vaultPath: settings.vaultPath || "",
     transcriptsPath: settings.transcriptsPath || "",
     apiKey: settings.apiKey || "",
+    aiPrivacyScan: settings.aiPrivacyScan !== false,
     model: settings.model || "claude-haiku-4-5",
     replacements: settings.replacements || [],
     corrections: settings.corrections || [],
@@ -36,7 +38,11 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch(`/api/folders?vaultPath=${encodeURIComponent(form.vaultPath.trim())}`);
+      await approveLocalPaths({
+        vaultPath: form.vaultPath.trim(),
+        transcriptsPath: form.transcriptsPath.trim(),
+      });
+      const res = await apiFetch(`/api/folders?vaultPath=${encodeURIComponent(form.vaultPath.trim())}`);
       const data = await res.json();
       if (res.ok) {
         setTestResult({ ok: true, message: `Found ${data.folders.length} folders in vault.` });
@@ -104,6 +110,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       vaultPath: form.vaultPath.trim(),
       transcriptsPath: form.transcriptsPath.trim(),
       apiKey: form.apiKey.trim(),
+      aiPrivacyScan: form.aiPrivacyScan,
       model: form.model,
       replacements: form.replacements,
       corrections: form.corrections,
@@ -171,7 +178,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
           <label className="label">Anthropic API Key</label>
           <p className="text-xs text-gray-500 mb-2">
             Your API key from{" "}
-            <span className="font-medium">console.anthropic.com</span>. Stored only in your browser.
+            <span className="font-medium">console.anthropic.com</span>. Stored only for this browser session.
             Alternatively, set <code className="bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</code> in{" "}
             <code className="bg-gray-100 px-1 rounded">.env.local</code>.
           </p>
@@ -183,6 +190,21 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
             onChange={(e) => handleChange("apiKey", e.target.value)}
           />
         </div>
+
+        <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded accent-obsidian-600"
+            checked={form.aiPrivacyScan}
+            onChange={(e) => handleChange("aiPrivacyScan", e.target.checked)}
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800">Use Claude to detect new sensitive terms</span>
+            <span className="block text-xs text-gray-500 mt-0.5">
+              Saved replacements are applied first. New, unsaved names may be sent to Claude during this scan; turn this off to use only your saved/manual replacements.
+            </span>
+          </span>
+        </label>
 
         <div>
           <label className="label">Default Model</label>

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { StepBadge } from "@/components/MeetingDetails";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function TranscriptInput({ transcript, setTranscript, onTitleSuggest }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -42,7 +43,7 @@ export default function TranscriptInput({ transcript, setTranscript, onTitleSugg
     setReceived(false);
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/receive-transcript");
+        const res = await apiFetch("/api/receive-transcript");
         const data = await res.json();
         if (data.pending) {
           stopWaiting();

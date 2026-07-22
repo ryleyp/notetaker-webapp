@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { resolveInsideDirectory } from "@/lib/fileSafety";
+import { assertAllowedRoot } from "@/lib/pathAllowlist";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 function getMondayOfWeek(dateStr) {
   // Week = Sunday–Saturday; file is named after that Monday
@@ -104,6 +107,8 @@ function appendToFile(existing, actionItems, nextSteps, meetingTitle) {
 
 export async function POST(request) {
   try {
+    assertTrustedRequest(request);
+
     const { notes, vaultPath, meetingTitle } = await request.json();
     if (!notes || !vaultPath) return NextResponse.json({ ok: true });
 
@@ -112,8 +117,8 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, skipped: true });
     }
 
-    const resolvedVault = path.resolve(vaultPath);
-    const todosDir = path.join(resolvedVault, "Todos");
+    const resolvedVault = assertAllowedRoot(vaultPath, "Vault path");
+    const todosDir = resolveInsideDirectory(resolvedVault, "Todos", "Todos folder");
     if (!fs.existsSync(todosDir)) fs.mkdirSync(todosDir, { recursive: true });
 
     const monday = getMondayOfWeek(extractDateFromTitle(meetingTitle));

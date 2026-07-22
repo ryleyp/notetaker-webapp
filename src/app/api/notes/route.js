@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { textHasAlias } from "@/lib/accounts";
+import { assertExistingChildDirectory } from "@/lib/fileSafety";
+import { assertAllowedRoot } from "@/lib/pathAllowlist";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 function parseDateFromFilename(filename) {
   const match = filename.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -57,14 +60,25 @@ export async function GET(request) {
     return NextResponse.json({ error: "vaultPath is required" }, { status: 400 });
   }
 
-  const resolvedVault = path.resolve(vaultPath);
-  const targetDir = folderPath ? path.join(resolvedVault, folderPath) : resolvedVault;
-
-  if (!fs.existsSync(targetDir)) {
-    return NextResponse.json({ error: "Folder does not exist" }, { status: 404 });
+  try {
+    assertTrustedRequest(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid local session" },
+      { status: error?.status || 403 }
+    );
   }
-  if (!path.normalize(targetDir).startsWith(path.normalize(resolvedVault))) {
-    return NextResponse.json({ error: "Path is outside vault" }, { status: 403 });
+
+  let resolvedVault;
+  let targetDir;
+  try {
+    resolvedVault = assertAllowedRoot(vaultPath, "Vault path");
+    targetDir = assertExistingChildDirectory(resolvedVault, folderPath, "Folder");
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid folder" },
+      { status: error?.status || 500 }
+    );
   }
 
   const threeMonthsAgo = new Date();
