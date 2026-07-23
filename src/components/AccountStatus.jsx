@@ -5,7 +5,19 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { detectAccount } from "@/lib/accounts";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
-import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning, StrictToggle, VerifyFindings } from "@/components/ReportSections";
+import {
+  ScanButton,
+  CountsBadges,
+  NoteList,
+  GeneratePanel,
+  PreflightPanel,
+  OutputHeader,
+  HistoryMenu,
+  BleedWarning,
+  StrictToggle,
+  VerifyFindings,
+} from "@/components/ReportSections";
+import { apiFetch } from "@/lib/apiClient";
 
 function threeMonthsAgoLabel() {
   const d = new Date();
@@ -27,7 +39,7 @@ export default function AccountStatus({ settings, onSettingsClick }) {
       if (settings.transcriptsPath) scanParams.set("transcriptsPath", settings.transcriptsPath);
       scanParams.set("accounts", JSON.stringify([{ name: acct.name, archiveFolder: acct.archiveFolder, aliases: acct.aliases || [] }]));
       try {
-        const res = await fetch(`/api/scan-vault?${scanParams}`);
+        const res = await apiFetch(`/api/scan-vault?${scanParams}`);
         const data = await res.json();
         if (res.ok && data.results?.[0]?.files?.length) {
           return { files: data.results[0].files, total: data.total };
@@ -37,7 +49,13 @@ export default function AccountStatus({ settings, onSettingsClick }) {
     },
   });
 
-  const scrub = { scrubReport: wf.scrubReport, restoredIds: wf.restoredIds, setRestoredIds: wf.setRestoredIds, open: wf.scrubOpen, setOpen: wf.setScrubOpen };
+  const scrub = {
+    scrubReport: wf.scrubReport,
+    restoredIds: wf.restoredIds,
+    setRestoredIds: wf.setRestoredIds,
+    open: wf.scrubOpen,
+    setOpen: wf.setScrubOpen,
+  };
   const folderLabel = wf.selectedFolder || "(Vault root)";
   const vaultScan = wf.extras;
 
@@ -75,7 +93,12 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                         Found {wf.loadedNotes.length} note{wf.loadedNotes.length !== 1 ? "s" : ""} in the past quarter
                       </p>
                       <CountsBadges counts={wf.loadCounts} />
-                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} noteRisks={wf.noteRisks} />
+                      <NoteList
+                        notes={wf.loadedNotes}
+                        excludedFiles={wf.excludedFiles}
+                        onToggle={wf.toggleNoteExcluded}
+                        noteRisks={wf.noteRisks}
+                      />
                     </div>
                   )}
 
@@ -88,13 +111,13 @@ export default function AccountStatus({ settings, onSettingsClick }) {
                         <svg className={`w-3.5 h-3.5 transition-transform ${vaultScanOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
-                        🗃 {vaultScan.files.length} file{vaultScan.files.length !== 1 ? "s" : ""} mention this account across all time
+                        {vaultScan.files.length} file{vaultScan.files.length !== 1 ? "s" : ""} mention this account across all time
                       </button>
                       {vaultScanOpen && (
                         <ul className="mt-1.5 text-xs text-gray-500 space-y-0.5 max-h-40 overflow-y-auto pl-5">
                           {vaultScan.files.map((f, i) => (
                             <li key={i} className="flex gap-2">
-                              <span className="font-mono text-gray-400 flex-shrink-0">{f.date || "—"}</span>
+                              <span className="font-mono text-gray-400 flex-shrink-0">{f.date || "-"}</span>
                               <span className="truncate">{f.title}</span>
                               <span className="text-gray-400 flex-shrink-0 italic">{f.location}</span>
                             </li>
@@ -156,6 +179,11 @@ export default function AccountStatus({ settings, onSettingsClick }) {
             verifying={wf.verifying}
             verifyDisabled={!wf.activeNotes?.length}
           />
+          {wf.summarizedCount > 0 && (
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              {wf.summarizedCount} older note{wf.summarizedCount !== 1 ? "s" : ""} were compressed first so newer full notes and older context could both inform the report.
+            </p>
+          )}
           <VerifyFindings findings={wf.verifyFindings} />
           {wf.partial && wf.synthError && (
             <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{wf.synthError}</p>
@@ -170,16 +198,20 @@ export default function AccountStatus({ settings, onSettingsClick }) {
           {wf.output && (
             <NotesPreview
               notes={wf.output}
+              onNotesChange={wf.handleOutputChange}
               onSave={() => wf.handleSave()}
               saving={wf.saving}
               saved={wf.saved}
               savedPath={wf.savedPath}
               cost={wf.synthCost}
               streaming={wf.synthesizing}
+              onCancel={wf.handleCancelSynthesis}
+              onRetry={wf.handleRetrySynthesis}
+              canRetry={!!wf.lastSynthesisRequest && !wf.synthesizing}
             />
           )}
           {wf.synthesizing && !wf.output && (
-            <div className="card p-6 text-sm text-gray-500 animate-pulse">Waiting for Claude…</div>
+            <div className="card p-6 text-sm text-gray-500 animate-pulse">Waiting for Claude...</div>
           )}
         </div>
       )}

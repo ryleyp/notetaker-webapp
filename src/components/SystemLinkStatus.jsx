@@ -4,7 +4,18 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import { textHasAlias, detectAccount } from "@/lib/accounts";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
-import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning, StrictToggle, VerifyFindings } from "@/components/ReportSections";
+import {
+  ScanButton,
+  CountsBadges,
+  NoteList,
+  GeneratePanel,
+  PreflightPanel,
+  OutputHeader,
+  HistoryMenu,
+  BleedWarning,
+  StrictToggle,
+  VerifyFindings,
+} from "@/components/ReportSections";
 
 const SL_PRODUCT = {
   name: "SystemLink",
@@ -40,7 +51,13 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
     synthesizeExtras: () => ({ productFocus: SL_PRODUCT }),
   });
 
-  const scrub = { scrubReport: wf.scrubReport, restoredIds: wf.restoredIds, setRestoredIds: wf.setRestoredIds, open: wf.scrubOpen, setOpen: wf.setScrubOpen };
+  const scrub = {
+    scrubReport: wf.scrubReport,
+    restoredIds: wf.restoredIds,
+    setRestoredIds: wf.setRestoredIds,
+    open: wf.scrubOpen,
+    setOpen: wf.setScrubOpen,
+  };
   const folderLabel = wf.selectedFolder || "(Vault root)";
   const excludedCount = wf.rawNotes && wf.loadedNotes ? wf.rawNotes.length - wf.loadedNotes.length : 0;
 
@@ -84,7 +101,12 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
                         )}
                       </p>
                       <CountsBadges counts={wf.loadCounts} />
-                      <NoteList notes={wf.loadedNotes} excludedFiles={wf.excludedFiles} onToggle={wf.toggleNoteExcluded} noteRisks={wf.noteRisks} />
+                      <NoteList
+                        notes={wf.loadedNotes}
+                        excludedFiles={wf.excludedFiles}
+                        onToggle={wf.toggleNoteExcluded}
+                        noteRisks={wf.noteRisks}
+                      />
                     </>
                   )}
                 </div>
@@ -144,6 +166,11 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
             verifying={wf.verifying}
             verifyDisabled={!wf.activeNotes?.length}
           />
+          {wf.summarizedCount > 0 && (
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              {wf.summarizedCount} older note{wf.summarizedCount !== 1 ? "s" : ""} were compressed first so newer full notes and older context could both inform the report.
+            </p>
+          )}
           <VerifyFindings findings={wf.verifyFindings} />
           {wf.partial && wf.synthError && (
             <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{wf.synthError}</p>
@@ -158,16 +185,20 @@ export default function SystemLinkStatus({ settings, onSettingsClick }) {
           {wf.output && (
             <NotesPreview
               notes={wf.output}
+              onNotesChange={wf.handleOutputChange}
               onSave={() => wf.handleSave()}
               saving={wf.saving}
               saved={wf.saved}
               savedPath={wf.savedPath}
               cost={wf.synthCost}
               streaming={wf.synthesizing}
+              onCancel={wf.handleCancelSynthesis}
+              onRetry={wf.handleRetrySynthesis}
+              canRetry={!!wf.lastSynthesisRequest && !wf.synthesizing}
             />
           )}
           {wf.synthesizing && !wf.output && (
-            <div className="card p-6 text-sm text-gray-500 animate-pulse">Waiting for Claude…</div>
+            <div className="card p-6 text-sm text-gray-500 animate-pulse">Waiting for Claude...</div>
           )}
         </div>
       )}

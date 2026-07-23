@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { textHasAlias } from "@/lib/accounts";
+import { assertExistingChildDirectory } from "@/lib/fileSafety";
+import { assertAllowedRoot } from "@/lib/pathAllowlist";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 function parseDateFromFilename(filename) {
   const match = filename.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -17,7 +20,7 @@ function parseDateFromContent(content) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function readFolder(dir, cutoff, source, sourceLabel) {
+function readFolder(dir, cutoff, source, sourceLabel, options = {}) {
   const notes = [];
   if (!fs.existsSync(dir)) return notes;
   let entries;
@@ -29,7 +32,10 @@ function readFolder(dir, cutoff, source, sourceLabel) {
     let content;
     try { content = fs.readFileSync(filePath, "utf-8"); } catch { continue; }
 
-    const date = parseDateFromFilename(entry.name) || parseDateFromContent(content);
+    let date = parseDateFromFilename(entry.name) || parseDateFromContent(content);
+    if (!date && options.useMtimeDate) {
+      try { date = fs.statSync(filePath).mtime; } catch { continue; }
+    }
     if (!date || date < cutoff.start) continue;
     if (cutoff.end && date > cutoff.end) continue;
 
@@ -49,6 +55,8 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const vaultPath = searchParams.get("vaultPath");
   const folderPath = searchParams.get("folderPath") || "";
+  const transcriptsPath = searchParams.get("transcriptsPath") || "";
+  const transcriptFolder = searchParams.get("transcriptFolder") || "";
   const accountAliases = (searchParams.get("accountAliases") || searchParams.get("accountKeyword") || "")
     .split(",")
     .map((s) => s.trim())
@@ -58,14 +66,25 @@ export async function GET(request) {
     return NextResponse.json({ error: "vaultPath is required" }, { status: 400 });
   }
 
-  const resolvedVault = path.resolve(vaultPath);
-  const targetDir = folderPath ? path.join(resolvedVault, folderPath) : resolvedVault;
-
-  if (!fs.existsSync(targetDir)) {
-    return NextResponse.json({ error: "Folder does not exist" }, { status: 404 });
+  try {
+    assertTrustedRequest(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid local session" },
+      { status: error?.status || 403 }
+    );
   }
-  if (!path.normalize(targetDir).startsWith(path.normalize(resolvedVault))) {
-    return NextResponse.json({ error: "Path is outside vault" }, { status: 403 });
+
+  let resolvedVault;
+  let targetDir;
+  try {
+    resolvedVault = assertAllowedRoot(vaultPath, "Vault path");
+    targetDir = assertExistingChildDirectory(resolvedVault, folderPath, "Folder");
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid folder" },
+      { status: error?.status || 500 }
+    );
   }
 
   // Date window: explicit startDate/endDate (YYYY-MM-DD) take precedence;
@@ -88,7 +107,21 @@ export async function GET(request) {
   // 1. Primary Obsidian folder notes
   const primaryNotes = readFolder(targetDir, cutoff, "obsidian", folderPath || "Vault root");
 
-  // 2. Cross-vault keyword search (other Obsidian subfolders, skipping transcript folders).
+  // 2. Transcript archive notes for this account. Transcript filenames often
+  // do not contain dates, so use modified time as a fallback for archive files.
+  let transcriptNotes = [];
+  let transcriptWarning = null;
+  if (transcriptsPath && transcriptFolder) {
+    try {
+      const resolvedTranscripts = assertAllowedRoot(transcriptsPath, "Transcripts archive path");
+      const transcriptDir = assertExistingChildDirectory(resolvedTranscripts, transcriptFolder, "Transcript folder");
+      transcriptNotes = readFolder(transcriptDir, cutoff, "transcript", transcriptFolder, { useMtimeDate: true });
+    } catch (error) {
+      transcriptWarning = error?.message || "Transcript archive could not be scanned";
+    }
+  }
+
+  // 3. Cross-vault keyword search (other Obsidian subfolders, skipping transcript folders).
   // A note matches if any account alias appears as a whole word in its content.
   let crossVaultNotes = [];
   if (accountAliases.length) {
@@ -112,7 +145,7 @@ export async function GET(request) {
     }
   }
 
-  const all = [...primaryNotes, ...crossVaultNotes];
+  const all = [...primaryNotes, ...transcriptNotes, ...crossVaultNotes];
   all.sort((a, b) => {
     const dateCmp = b.date.localeCompare(a.date);
     if (dateCmp !== 0) return dateCmp;
@@ -125,7 +158,9 @@ export async function GET(request) {
     total: all.length,
     counts: {
       obsidian: primaryNotes.length,
+      transcripts: transcriptNotes.length,
       crossVault: crossVaultNotes.length,
     },
+    warning: transcriptWarning,
   });
 }

@@ -5,6 +5,7 @@ import { detectAccount } from "@/lib/accounts";
 import { buildScrubReport, redactForbiddenTerms, assessNoteDominance } from "@/lib/scrub";
 import { reverseReplacements } from "@/lib/sanitize";
 import { calcCost } from "@/lib/pricing";
+import { apiFetch } from "@/lib/apiClient";
 
 export const TODAY = new Date().toISOString().split("T")[0];
 
@@ -57,6 +58,7 @@ export function useReportWorkflow({
   const [savedPath, setSavedPath] = useState("");
   const [synthCost, setSynthCost] = useState(null);
   const [droppedCount, setDroppedCount] = useState(0);
+  const [summarizedCount, setSummarizedCount] = useState(0);
 
   const [scrubReport, setScrubReport] = useState([]);
   const [restoredIds, setRestoredIds] = useState(new Set());
@@ -69,6 +71,8 @@ export function useReportWorkflow({
   // Raw (pseudonymized) streamed text — kept for append/resume; `output`
   // holds the display text (names reversed once generation finishes).
   const rawRef = useRef("");
+  const synthControllerRef = useRef(null);
+  const [lastSynthesisRequest, setLastSynthesisRequest] = useState(null);
   const hydrated = useRef(false);
 
   // Restore last session on mount.
@@ -139,6 +143,7 @@ export function useReportWorkflow({
     rawRef.current = "";
     setPartial(false);
     setSaved(false);
+    setSummarizedCount(0);
   }
 
   async function handleLoadNotes() {
@@ -159,10 +164,14 @@ export function useReportWorkflow({
       // Strict mode: skip cross-folder search entirely — the account's own
       // folder is the only source, eliminating multi-account note risk.
       if (!strictFolderOnly && acct.aliases?.length) params.set("accountAliases", acct.aliases.join(","));
+      if (settings.transcriptsPath && acct.archiveFolder) {
+        params.set("transcriptsPath", settings.transcriptsPath);
+        params.set("transcriptFolder", acct.archiveFolder);
+      }
       buildNotesParams?.(params);
 
       const [notesRes, extraData] = await Promise.all([
-        fetch(`/api/notes?${params}`),
+        apiFetch(`/api/notes?${params}`),
         loadExtras ? loadExtras(acct) : Promise.resolve(null),
       ]);
       const data = await notesRes.json();
@@ -201,6 +210,9 @@ export function useReportWorkflow({
   // opts.extraBody — merged into the request body (e.g. resumeRows)
   async function handleSynthesize(opts = {}) {
     if (!activeNotes?.length) return;
+    const controller = new AbortController();
+    synthControllerRef.current = controller;
+    setLastSynthesisRequest(opts);
     setSynthesizing(true);
     setSynthError(null);
     setSaved(false);
@@ -210,6 +222,7 @@ export function useReportWorkflow({
       rawRef.current = "";
       setOutput("");
       setDroppedCount(0);
+      setSummarizedCount(0);
       setRedactedCount(0);
     }
     setVerifyFindings(null);
@@ -228,9 +241,10 @@ export function useReportWorkflow({
     };
 
     try {
-      const res = await fetch("/api/synthesize", {
+      const res = await apiFetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           notes: activeNotes,
           apiKey: settings.apiKey || undefined,
@@ -273,23 +287,45 @@ export function useReportWorkflow({
             setOutput(finalize(accumulated));
             if (evt.usage) setSynthCost(calcCost(evt.usage, evt.model));
             if (evt.droppedCount) setDroppedCount(evt.droppedCount);
+            if (evt.summarizedCount) setSummarizedCount(evt.summarizedCount);
           } else if (evt.type === "error") {
             throw new Error(evt.message);
           }
         }
       }
     } catch (e) {
+      const message = e.name === "AbortError" ? "Synthesis canceled." : e.message;
       // Keep whatever streamed before the failure — it was paid for.
       if (accumulated.trim()) {
         setPartial(true);
         setOutput(finalize(accumulated));
-        setSynthError(`${e.message} — partial output kept below.`);
+        setSynthError(`${message} — partial output kept below.`);
       } else {
-        setSynthError(e.message);
+        setSynthError(message);
       }
     } finally {
+      if (synthControllerRef.current === controller) {
+        synthControllerRef.current = null;
+      }
       setSynthesizing(false);
     }
+  }
+
+  function handleCancelSynthesis() {
+    synthControllerRef.current?.abort();
+  }
+
+  function handleRetrySynthesis() {
+    if (lastSynthesisRequest) handleSynthesize(lastSynthesisRequest);
+  }
+
+  function handleOutputChange(nextOutput) {
+    setOutput(nextOutput);
+    rawRef.current = nextOutput;
+    setSaved(false);
+    setSavedPath("");
+    setPartial(false);
+    setVerifyFindings(null);
   }
 
   // Second-pass audit of the generated Markdown report against the scanned
@@ -301,7 +337,7 @@ export function useReportWorkflow({
     try {
       const acct = acctCtx();
       const reps = settings.replacements || [];
-      const res = await fetch("/api/verify-report", {
+      const res = await apiFetch("/api/verify-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -336,7 +372,7 @@ export function useReportWorkflow({
     setSaving(true);
     try {
       const title = typeof saveTitle === "function" ? saveTitle() : saveTitle;
-      const res = await fetch("/api/save", {
+      const res = await apiFetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -375,6 +411,7 @@ export function useReportWorkflow({
     setSynthError(null);
     setSynthCost(null);
     setRedactedCount(0);
+    setSummarizedCount(0);
     setVerifyFindings(null);
     setRestoredFromStorage(false);
   }
@@ -405,9 +442,10 @@ export function useReportWorkflow({
     synthesizing, synthError, output, setOutput, partial, redactedCount,
     verifying, verifyFindings, handleVerifyReport,
     saving, saved, savedPath, synthCost, droppedCount,
+    summarizedCount, lastSynthesisRequest,
     scrubReport, restoredIds, setRestoredIds, scrubOpen, setScrubOpen,
     model, setModel,
     history, openHistoryItem, restoredFromStorage,
-    invalidateNotes, handleLoadNotes, handleSynthesize, handleSave, handleReset,
+    invalidateNotes, handleLoadNotes, handleSynthesize, handleCancelSynthesis, handleRetrySynthesis, handleOutputChange, handleSave, handleReset,
   };
 }

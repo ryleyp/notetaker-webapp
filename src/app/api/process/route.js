@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { looksSpeakerLabeled } from "@/lib/speakers";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist working for a Customer Success Manager (CSM) at NI (National Instruments). The person who recorded this meeting is that CSM — their job is driving adoption, expansion, and renewal of NI products at large customer accounts.
 
@@ -10,7 +11,7 @@ Domain context — interpret the transcript through this lens:
 - Test & measurement engineering: automated test systems, HIL, validation/production test, instrument control, measurement data management. Terms like "DAQ", "rigs", "test stands", "sequences", and "drivers" mean their T&M sense, not general IT.
 - Ambiguous transcription of product names should resolve to the closest NI product (e.g. "test stand" in a software context is likely TestStand).
 
-Your notes must be extremely thorough — do not omit any important information, decisions, or discussions from the transcript. Frame relevance from the CSM's perspective: customer adoption signals, license/EA questions, support issues, expansion or renewal implications, and commitments the CSM made.
+Your notes must be extremely thorough — do not omit any important information, decisions, or discussions from the transcript. Frame relevance from the CSM's perspective: customer adoption signals, license/EA questions, support issues, expansion or renewal implications, and commitments the CSM made. Honor section-specific word limits even when the rest of the note should stay detailed.
 
 Do NOT include personal updates, personal check-ins, or personal anecdotes (e.g. weekend plans, health updates, family news, personal status). Focus only on business-relevant content.
 
@@ -67,7 +68,7 @@ SUMMARY/NOTES RULES
 - Do not invent attendees, regions, outcomes, or next steps that aren't supported by the transcript or the CSM's own context/notes.
 - Exclude raw internal complaints/blame, speculative pricing or forecast figures, and anything the account team wouldn't want visible in CRM.`;
 
-function buildPrompt(transcript, meetingTitle, suggestedAgreements = [], meetingContext = "") {
+export function buildPrompt(transcript, meetingTitle, suggestedAgreements = [], meetingContext = "") {
   const title = meetingTitle || "Meeting Notes";
 
   // Extra background and/or the CSM's own handwritten notes, typed in by the
@@ -109,6 +110,8 @@ ${TAG_CATEGORIES}
 
 Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML frontmatter block.
 
+Word limit: The Executive Summary and Meeting Notes sections together must be 120 words or fewer. Keep those two sections tight; use the later callout, action item, and next step sections for structured follow-up detail.
+
 # ${title}
 
 <tag line: list extracted tags inline as #tag1 #tag2 #tag3>
@@ -117,13 +120,13 @@ Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML fr
 
 ## Executive Summary
 
-Write 3-5 concise sentences capturing the overall purpose, key outcomes, and most important decisions from this meeting.
+Write 1-2 concise sentences capturing the overall purpose, key outcomes, and most important decisions from this meeting. This section counts toward the combined 120-word limit for Executive Summary + Meeting Notes.
 
 ---
 
 ## Meeting Notes
 
-Provide thorough bulleted notes that capture all important information from the transcript. Focus on decisions, key points, and meaningful details — skip filler, repetition, tangential remarks, and personal updates or check-ins. Use sub-bullets for important specifics. Organize by topic when appropriate. Quote or closely paraphrase notable statements.
+Provide concise bulleted notes with only the highest-signal decisions, key points, and meaningful details from the transcript. Skip filler, repetition, tangential remarks, and personal updates or check-ins. This section and Executive Summary together must be 120 words or fewer.
 
 ---
 
@@ -143,6 +146,22 @@ Read between the lines and capture the human dynamics of the meeting — the thi
 - **Callouts** — anything worth remembering before the next interaction: a sore subject to avoid, a win to reference, a person who needs extra attention, an unspoken concern that never got voiced directly.
 
 Ground every observation in something actually said or evident in the transcript — cite the moment briefly ("pushed back twice on the migration timeline"). Do not psychoanalyze or invent feelings that aren't supported. If the transcript genuinely gives no sentiment signal, write "No notable sentiment signals in this transcript."
+
+---
+
+## User-Level Callouts
+
+Call out specific customer users, stakeholders, sponsors, admins, evaluators, champions, blockers, or NI/internal contacts who matter to account planning. Include only people actually mentioned in the transcript. For each person, capture role/team if stated, relationship or influence if stated, account-relevant context, and any follow-up implication. If no specific people are mentioned, write "Nothing noted."
+
+- **[Name]** — [role/team or "not stated"]: [account-relevant context and planning implication]
+
+---
+
+## Site-Level Callouts
+
+Call out specific customer sites, labs, campuses, buildings, cities, or named locations mentioned in the transcript. Include only locations actually mentioned. For each site/location, capture associated people or teams if stated, NI software/product context if stated, risks/blockers, and any site-level planning implication. If no specific sites or locations are mentioned, write "Nothing noted."
+
+- **[Site / lab / location]** — [site context, associated stakeholders/teams, software context, and planning implication]
 
 ---
 
@@ -177,6 +196,8 @@ ${agreementBlock}`;
 
 export async function POST(request) {
   try {
+    assertTrustedRequest(request);
+
     const body = await request.json();
     const { transcript, meetingTitle, apiKey, model, suggestedAgreements = [], meetingContext = "" } = body;
 
@@ -201,28 +222,32 @@ export async function POST(request) {
       messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle, suggestedAgreements, meetingContext) }],
     });
 
+    const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
+        const send = (obj) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         try {
           for await (const chunk of stream) {
             if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-              controller.enqueue(new TextEncoder().encode(chunk.delta.text));
+              send({ type: "delta", text: chunk.delta.text });
             }
           }
-          // Append usage as a tagged footer after all content
           const finalMsg = await stream.finalMessage();
-          controller.enqueue(
-            new TextEncoder().encode(`\n__USAGE__${JSON.stringify(finalMsg.usage)}`)
-          );
-          controller.close();
+          send({ type: "done", usage: finalMsg.usage, model: model || "claude-sonnet-4-6" });
         } catch (err) {
-          controller.error(err);
+          send({ type: "error", message: err?.message || "Processing failed" });
+        } finally {
+          controller.close();
         }
       },
     });
 
     return new Response(readable, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (error) {
     console.error("Error processing transcript:", error);

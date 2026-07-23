@@ -4,6 +4,8 @@ import {
   applyReplacements,
   reverseReplacements,
   assignAliases,
+  correctionFromRestoredItem,
+  mergeCorrections,
 } from "@/lib/sanitize";
 
 describe("applyCorrections", () => {
@@ -23,6 +25,31 @@ describe("applyCorrections", () => {
 
   it("skips entries with a blank find", () => {
     expect(applyCorrections("abc", [{ find: "  ", replace: "x" }])).toBe("abc");
+  });
+});
+
+describe("privacy review corrections", () => {
+  it("creates a correction when a restored spelling differs from the detected text", () => {
+    expect(correctionFromRestoredItem({ text: "Riley", alias: "PERSON_1", restored: "Ryley" })).toEqual({
+      find: "Riley",
+      replace: "Ryley",
+    });
+  });
+
+  it("does not create a correction when the restored spelling is unchanged", () => {
+    expect(correctionFromRestoredItem({ text: "Riley", alias: "PERSON_1", restored: "Riley" })).toBeNull();
+  });
+
+  it("updates an existing correction instead of appending a conflicting duplicate", () => {
+    const merged = mergeCorrections(
+      [{ find: "Riley", replace: "Rylee" }, { find: "in tools", replace: "NI tools" }],
+      [{ find: "Riley", replace: "Ryley" }]
+    );
+
+    expect(merged).toEqual([
+      { find: "Riley", replace: "Ryley" },
+      { find: "in tools", replace: "NI tools" },
+    ]);
   });
 });
 

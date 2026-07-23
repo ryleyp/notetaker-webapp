@@ -55,6 +55,16 @@ export default function Header({ onSettingsClick, isSettingsOpen, mode, onModeCh
                 Account Status
               </button>
               <button
+                onClick={() => onModeChange("mapping")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === "mapping"
+                    ? "bg-white text-obsidian-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Mapping
+              </button>
+              <button
                 onClick={() => onModeChange("sl-status")}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   mode === "sl-status"

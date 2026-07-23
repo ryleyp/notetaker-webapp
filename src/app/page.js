@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Header from "@/components/Header";
 import SettingsPanel from "@/components/SettingsPanel";
 import MeetingDetails from "@/components/MeetingDetails";
@@ -10,17 +10,28 @@ import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
 import SystemLinkStatus from "@/components/SystemLinkStatus";
 import CSMActivityReport from "@/components/CSMActivityReport";
+import StakeholderMap from "@/components/StakeholderMap";
 import SanitizeReview from "@/components/SanitizeReview";
 import SpeakerReview from "@/components/SpeakerReview";
-import { applyReplacements, reverseReplacements, assignAliases, applyCorrections } from "@/lib/sanitize";
-import { calcCost, formatCost } from "@/lib/pricing";
+import {
+  applyReplacements,
+  reverseReplacements,
+  assignAliases,
+  applyCorrections,
+  correctionFromRestoredItem,
+  mergeCorrections,
+} from "@/lib/sanitize";
+import { calcCost } from "@/lib/pricing";
 import { matchVaultFolder, detectAccount, suggestAgreements, DEFAULT_ACCOUNTS } from "@/lib/accounts";
 import { looksSpeakerLabeled } from "@/lib/speakers";
+import { aliasesFromReplacements } from "@/lib/privacy";
+import { mergeFileConfigIntoSettings } from "@/lib/settings";
+import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS });
+  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", aiPrivacyScan: true, replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS });
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
@@ -54,6 +65,14 @@ export default function Home() {
   const [savingTranscript, setSavingTranscript] = useState(false);
   const [transcriptSaved, setTranscriptSaved] = useState(false);
   const [transcriptSavedPath, setTranscriptSavedPath] = useState("");
+  const generationControllerRef = useRef(null);
+  const [lastGenerationRequest, setLastGenerationRequest] = useState(null);
+
+  function persistBrowserSettings(nextSettings) {
+    const settingsToPersist = { ...nextSettings };
+    delete settingsToPersist.apiKey;
+    localStorage.setItem("obsidian-notes-settings", JSON.stringify(settingsToPersist));
+  }
 
   useEffect(() => {
     let base;
@@ -61,8 +80,21 @@ export default function Home() {
       const stored = localStorage.getItem("obsidian-notes-settings");
       if (stored) {
         const parsed = JSON.parse(stored);
-        base = { replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS, transcriptsPath: "/Users/ryleypriddy/Documents/Claude", ...parsed };
+        const { apiKey: oldPersistedApiKey, ...persistedSettings } = parsed;
+        const sessionApiKey = sessionStorage.getItem("obsidian-notes-api-key") || "";
+        base = {
+          replacements: [],
+          corrections: [],
+          accounts: DEFAULT_ACCOUNTS,
+          transcriptsPath: "/Users/ryleypriddy/Documents/Claude",
+          aiPrivacyScan: true,
+          ...persistedSettings,
+          apiKey: sessionApiKey,
+        };
         setSettings(base);
+        if (oldPersistedApiKey) {
+          localStorage.setItem("obsidian-notes-settings", JSON.stringify(persistedSettings));
+        }
         if (parsed.model) setModel(parsed.model);
         if (!parsed.vaultPath) setShowSettings(true);
       } else {
@@ -77,17 +109,13 @@ export default function Home() {
     if (!dir) return;
     (async () => {
       try {
-        const res = await fetch(`/api/config?path=${encodeURIComponent(dir)}`);
+        await approveLocalPaths(base);
+        const res = await apiFetch(`/api/config?path=${encodeURIComponent(dir)}`);
         const data = await res.json();
         if (data.config) {
           setSettings((prev) => {
-            const merged = {
-              ...prev,
-              replacements: data.config.replacements ?? prev.replacements,
-              corrections: data.config.corrections ?? prev.corrections,
-              accounts: data.config.accounts?.length ? data.config.accounts : prev.accounts,
-            };
-            localStorage.setItem("obsidian-notes-settings", JSON.stringify(merged));
+            const merged = mergeFileConfigIntoSettings(prev, data.config);
+            persistBrowserSettings(merged);
             return merged;
           });
         }
@@ -107,20 +135,22 @@ export default function Home() {
   function persistConfig(s) {
     const dir = s.transcriptsPath || s.vaultPath;
     if (!dir) return;
-    fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        path: dir,
-        config: {
-          accounts: s.accounts || DEFAULT_ACCOUNTS,
-          corrections: s.corrections || [],
-        },
-        glossary: {
-          replacements: s.replacements || [],
-        },
-      }),
-    }).catch(() => {});
+    approveLocalPaths(s)
+      .then(() => apiFetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: dir,
+          config: {
+            accounts: s.accounts || DEFAULT_ACCOUNTS,
+            corrections: s.corrections || [],
+          },
+          glossary: {
+            replacements: s.replacements || [],
+          },
+        }),
+      }))
+      .catch(() => {});
   }
 
   // Targeted accounts update (e.g. the bleed-feedback flow adding keywords)
@@ -128,19 +158,27 @@ export default function Home() {
   function handleAccountsUpdate(accounts) {
     setSettings((prev) => {
       const merged = { ...prev, accounts };
-      localStorage.setItem("obsidian-notes-settings", JSON.stringify(merged));
+      persistBrowserSettings(merged);
       persistConfig(merged);
       return merged;
     });
   }
 
-  function handleSaveSettings(newSettings) {
-    const merged = { replacements: [], ...newSettings };
-    setSettings(merged);
-    localStorage.setItem("obsidian-notes-settings", JSON.stringify(newSettings));
-    persistConfig(merged);
-    setShowSettings(false);
-    setSelectedFolder("");
+  async function handleSaveSettings(newSettings) {
+    const { apiKey, ...settingsToPersist } = newSettings;
+    const merged = { replacements: [], ...settingsToPersist, apiKey };
+    try {
+      await approveLocalPaths(merged);
+      setSettings(merged);
+      localStorage.setItem("obsidian-notes-settings", JSON.stringify(settingsToPersist));
+      if (apiKey) sessionStorage.setItem("obsidian-notes-api-key", apiKey);
+      else sessionStorage.removeItem("obsidian-notes-api-key");
+      persistConfig(merged);
+      setShowSettings(false);
+      setSelectedFolder("");
+    } catch (error) {
+      alert(`Failed to approve local paths: ${error.message}`);
+    }
   }
 
   function handleTitleSuggest(suggested) {
@@ -190,31 +228,44 @@ export default function Home() {
   // Shared: detect entities, show review card, then route to action
   async function runSanitizeDetection(action) {
     const savedReplacements = settings.replacements || [];
-    const knownTerms = savedReplacements.map((r) => r.original);
     setSanitizing(true);
     setPendingAction(action);
 
     // Pre-apply known corrections and replacements — the scan only sees
     // pseudonymized versions of already-known names.
-    const scanSource = meetingContext.trim() ? `${transcript}\n${meetingContext}` : transcript;
-    const preSanitized = applyReplacements(
-      applyCorrections(scanSource, settings.corrections || []),
+    const correctedTitle = applyCorrections(meetingTitle, settings.corrections || []);
+    const preSanitizedTitle = applyReplacements(correctedTitle, savedReplacements);
+    const preSanitizedTranscript = applyReplacements(
+      applyCorrections(transcript, settings.corrections || []),
       savedReplacements
     );
+    const preSanitizedContext = applyReplacements(
+      applyCorrections(meetingContext, settings.corrections || []),
+      savedReplacements
+    );
+    const scanText = [preSanitizedTitle, preSanitizedTranscript, preSanitizedContext]
+      .filter((part) => part && part.trim())
+      .join("\n\n");
 
     let newEntities = [];
-    let scanSkipped = false;
-    try {
-      const res = await fetch("/api/sanitize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: preSanitized, apiKey: settings.apiKey || undefined, knownTerms }),
-      });
-      const data = await res.json();
-      if (data.skipped) scanSkipped = true;
-      newEntities = data.entities || [];
-    } catch {
-      scanSkipped = true;
+    let scanSkipped = !settings.aiPrivacyScan;
+    if (settings.aiPrivacyScan) {
+      try {
+        const res = await apiFetch("/api/sanitize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcript: scanText,
+            apiKey: settings.apiKey || undefined,
+            knownAliases: aliasesFromReplacements(savedReplacements),
+          }),
+        });
+        const data = await res.json();
+        if (data.skipped) scanSkipped = true;
+        newEntities = data.entities || [];
+      } catch {
+        scanSkipped = true;
+      }
     }
 
     setSanitizing(false);
@@ -223,7 +274,7 @@ export default function Home() {
       const detected = assignAliases(newEntities, savedReplacements);
       setPendingReview(detected);
     } else {
-      if (scanSkipped) {
+      if (scanSkipped && settings.aiPrivacyScan) {
         setProcessError("Sensitivity scan skipped — set your API key in Settings to enable name/company detection.");
       }
       if (action === "generate") await doGenerate(savedReplacements);
@@ -254,15 +305,19 @@ export default function Home() {
   // Step 2: user confirms review
   async function handleReviewConfirm(confirmed, toSave) {
     let updatedSettings = settings;
+    const correctionsToSave = toSave.map(correctionFromRestoredItem).filter(Boolean);
 
-    if (toSave.length > 0) {
+    if (toSave.length > 0 || correctionsToSave.length > 0) {
       const newReplacements = [
         ...(settings.replacements || []),
         ...toSave.map((r) => ({ original: r.text, alias: r.alias, restored: r.restored || r.text })),
       ];
-      updatedSettings = { ...settings, replacements: newReplacements };
+      const newCorrections = correctionsToSave.length
+        ? mergeCorrections(settings.corrections || [], correctionsToSave)
+        : settings.corrections || [];
+      updatedSettings = { ...settings, replacements: newReplacements, corrections: newCorrections };
       setSettings(updatedSettings);
-      localStorage.setItem("obsidian-notes-settings", JSON.stringify(updatedSettings));
+      persistBrowserSettings(updatedSettings);
       persistConfig(updatedSettings);
     }
 
@@ -287,37 +342,27 @@ export default function Home() {
   }
 
   // Step 3: sanitize + generate
-  async function doGenerate(replacements) {
-    setActiveReplacements(replacements);
-    const corrected = applyCorrections(transcript, settings.corrections || []);
-    const sanitizedTranscript = replacements.length
-      ? applyReplacements(corrected, replacements)
-      : corrected;
-    const correctedContext = applyCorrections(meetingContext, settings.corrections || []);
-    const sanitizedContext = replacements.length
-      ? applyReplacements(correctedContext, replacements)
-      : correctedContext;
+  async function streamGenerateRequest(requestConfig) {
+    const { payload, replacements } = requestConfig;
+    const controller = new AbortController();
+    generationControllerRef.current = controller;
 
-    // Match this account's EA/EP numbers to the raw transcript by keyword so
-    // they can be suggested in the SFDC entry. Done client-side on the
-    // original text (not the pseudonymized copy) so keyword matching is exact.
-    const acct = detectAccount(selectedFolder, settings.accounts);
-    const account = (settings.accounts || []).find((a) => a.name === acct.name);
-    const suggestedAgreements = account ? suggestAgreements(transcript, account) : [];
-
+    setLastGenerationRequest(requestConfig);
     setProcessing(true);
+    setProcessError(null);
+    setNotes("");
+    setSaved(false);
+    setSavedPath("");
+    setTodosSaved(null);
+    setSfdcReportSaved(null);
+    setNoteCost(null);
+
     try {
-      const res = await fetch("/api/process", {
+      const res = await apiFetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript: sanitizedTranscript,
-          meetingContext: sanitizedContext,
-          meetingTitle,
-          apiKey: settings.apiKey || undefined,
-          model,
-          suggestedAgreements,
-        }),
+        signal: controller.signal,
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -325,34 +370,37 @@ export default function Home() {
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let full = "";
+      let accumulated = "";
+      let buffer = "";
+      let usage = null;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        full += decoder.decode(value, { stream: true });
-        // Strip usage footer while streaming so it doesn't flash on screen
-        const usageIdx = full.indexOf("\n__USAGE__");
-        setNotes(usageIdx !== -1 ? full.slice(0, usageIdx) : full);
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
+          const evt = JSON.parse(part.slice(6));
+          if (evt.type === "delta") {
+            accumulated += evt.text;
+            setNotes(accumulated);
+          } else if (evt.type === "done") {
+            usage = evt.usage;
+          } else if (evt.type === "error") {
+            throw new Error(evt.message);
+          }
+        }
       }
-      // Extract usage footer
-      const usageIdx = full.indexOf("\n__USAGE__");
-      if (usageIdx !== -1) {
-        try {
-          const usage = JSON.parse(full.slice(usageIdx + 10));
-          setNoteCost(calcCost(usage, model));
-        } catch {}
-        full = full.slice(0, usageIdx);
-      }
-      // Restore real names after stream completes
-      if (replacements.length) full = reverseReplacements(full, replacements);
-      setNotes(full);
+      if (usage) setNoteCost(calcCost(usage, model));
+      const restored = replacements.length ? reverseReplacements(accumulated, replacements) : accumulated;
+      setNotes(restored);
 
-      // Archive corrected transcript (best-effort, silent)
       if (settings.transcriptsPath) {
         const correctedTranscript = replacements.length
           ? reverseReplacements(applyReplacements(transcript, replacements), replacements)
           : transcript;
-        fetch("/api/save-transcript", {
+        apiFetch("/api/save-transcript", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -365,10 +413,68 @@ export default function Home() {
         }).catch(() => {});
       }
     } catch (e) {
-      setProcessError(e.message);
+      if (e.name === "AbortError") {
+        setProcessError("Generation canceled.");
+      } else {
+        setProcessError(e.message);
+      }
     } finally {
+      if (generationControllerRef.current === controller) {
+        generationControllerRef.current = null;
+      }
       setProcessing(false);
     }
+  }
+
+  async function doGenerate(replacements) {
+    setActiveReplacements(replacements);
+    const corrected = applyCorrections(transcript, settings.corrections || []);
+    const correctedTitle = applyCorrections(meetingTitle, settings.corrections || []);
+    const correctedContext = applyCorrections(meetingContext, settings.corrections || []);
+    const sanitizedTranscript = replacements.length
+      ? applyReplacements(corrected, replacements)
+      : corrected;
+    const sanitizedTitle = replacements.length
+      ? applyReplacements(correctedTitle, replacements)
+      : correctedTitle;
+    const sanitizedContext = replacements.length
+      ? applyReplacements(correctedContext, replacements)
+      : correctedContext;
+
+    // Match this account's EA/EP numbers to the raw transcript by keyword so
+    // they can be suggested in the SFDC entry. Done client-side on the
+    // original text (not the pseudonymized copy) so keyword matching is exact.
+    const acct = detectAccount(selectedFolder, settings.accounts);
+    const account = (settings.accounts || []).find((a) => a.name === acct.name);
+    const suggestedAgreements = account ? suggestAgreements(transcript, account) : [];
+
+    await streamGenerateRequest({
+      payload: {
+        transcript: sanitizedTranscript,
+        meetingContext: sanitizedContext,
+        meetingTitle: sanitizedTitle,
+        apiKey: settings.apiKey || undefined,
+        model,
+        suggestedAgreements,
+      },
+      replacements,
+    });
+  }
+
+  function handleCancelGeneration() {
+    generationControllerRef.current?.abort();
+  }
+
+  function handleRetryGeneration() {
+    if (lastGenerationRequest) streamGenerateRequest(lastGenerationRequest);
+  }
+
+  function handleNotesChange(nextNotes) {
+    setNotes(nextNotes);
+    setSaved(false);
+    setSavedPath("");
+    setTodosSaved(null);
+    setSfdcReportSaved(null);
   }
 
   async function handleSave() {
@@ -376,7 +482,7 @@ export default function Home() {
     setSaving(true);
     try {
       const folderPath = await resolveAutoFolder(meetingTitle + " " + notes);
-      const res = await fetch("/api/save", {
+      const res = await apiFetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -393,7 +499,7 @@ export default function Home() {
 
       // Extract todos assigned to Ryley/Riley and append to weekly file
       try {
-        const todosRes = await fetch("/api/todos", {
+        const todosRes = await apiFetch("/api/todos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes, vaultPath: settings.vaultPath, meetingTitle }),
@@ -409,7 +515,7 @@ export default function Home() {
       // Append the SFDC Activity Entry to this week's report file (same
       // weekly-file pattern as todos: Reports/<monday> - SFDC Activity Report.md)
       try {
-        const reportRes = await fetch("/api/sfdc-report", {
+        const reportRes = await apiFetch("/api/sfdc-report", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes, vaultPath: settings.vaultPath, meetingTitle }),
@@ -439,7 +545,7 @@ export default function Home() {
     try {
       const title = meetingTitle || "Transcript";
       const folderPath = await resolveAutoFolder(title + " " + corrected);
-      const res = await fetch("/api/save", {
+      const res = await apiFetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -455,7 +561,7 @@ export default function Home() {
       setTranscriptSavedPath(data.savedPath);
 
       if (settings.transcriptsPath) {
-        fetch("/api/save-transcript", {
+        apiFetch("/api/save-transcript", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -494,7 +600,7 @@ export default function Home() {
   async function resolveAutoFolder(content) {
     if (!settings.vaultPath || selectedFolder) return selectedFolder;
     try {
-      const res = await fetch(`/api/folders?vaultPath=${encodeURIComponent(settings.vaultPath)}`);
+      const res = await apiFetch(`/api/folders?vaultPath=${encodeURIComponent(settings.vaultPath)}`);
       const data = await res.json();
       const folders = (data.folders || []).filter((f) => f.path !== "");
       const matched = matchVaultFolder(content, folders, settings.accounts);
@@ -539,6 +645,14 @@ export default function Home() {
           />
         )}
 
+        {/* ── Customer & Site Mapping mode ── */}
+        {mode === "mapping" && (
+          <StakeholderMap
+            settings={settings}
+            onSettingsClick={() => setShowSettings(true)}
+          />
+        )}
+
         {/* ── SystemLink Status mode ── */}
         {mode === "sl-status" && (
           <SystemLinkStatus
@@ -567,10 +681,14 @@ export default function Home() {
               <NotesPreview
                 notes={notes}
                 onSave={handleSave}
+                onNotesChange={handleNotesChange}
                 saving={saving}
                 saved={saved}
                 savedPath={savedPath}
                 streaming={processing}
+                onCancel={handleCancelGeneration}
+                onRetry={handleRetryGeneration}
+                canRetry={!!lastGenerationRequest && !processing}
                 todosSaved={todosSaved}
                 sfdcReportSaved={sfdcReportSaved}
                 cost={noteCost}

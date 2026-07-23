@@ -28,6 +28,7 @@ export function CountsBadges({ counts, className = "" }) {
   return (
     <div className={`flex gap-3 text-xs text-gray-500 flex-wrap ${className}`}>
       {counts.obsidian > 0 && <span>📝 {counts.obsidian} Obsidian</span>}
+      {counts.transcripts > 0 && <span>📄 {counts.transcripts} Transcripts</span>}
       {counts.crossVault > 0 && <span>🔍 {counts.crossVault} Cross-folder</span>}
     </div>
   );

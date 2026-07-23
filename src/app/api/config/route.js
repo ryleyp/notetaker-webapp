@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { assertAllowedRoot } from "@/lib/pathAllowlist";
+import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const CONFIG_FILE = "notetaker-config.json";
 const GLOSSARY_FILE = "notetaker-glossary.json";
@@ -19,7 +21,21 @@ export async function GET(request) {
   const dir = searchParams.get("path");
   if (!dir) return NextResponse.json({ error: "path is required" }, { status: 400 });
 
-  const base = path.resolve(dir);
+  try {
+    assertTrustedRequest(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid local session" },
+      { status: error?.status || 403 }
+    );
+  }
+
+  let base;
+  try {
+    base = assertAllowedRoot(dir, "Config folder");
+  } catch (error) {
+    return NextResponse.json({ config: null });
+  }
   const cfg = readJSON(path.join(base, CONFIG_FILE));
   const gls = readJSON(path.join(base, GLOSSARY_FILE));
 
@@ -36,12 +52,13 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    assertTrustedRequest(request);
+
     const body = await request.json();
     const { path: dir, config, glossary } = body;
     if (!dir) return NextResponse.json({ error: "path is required" }, { status: 400 });
 
-    const base = path.resolve(dir);
-    if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
+    const base = assertAllowedRoot(dir, "Config folder");
 
     // Config file — accounts and corrections, no personal names
     if (config) {
@@ -61,6 +78,9 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: error?.message || "Save failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || "Save failed" },
+      { status: error?.status || 500 }
+    );
   }
 }

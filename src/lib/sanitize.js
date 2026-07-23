@@ -8,6 +8,39 @@ export function applyCorrections(text, corrections) {
   return result;
 }
 
+export function correctionFromRestoredItem(item) {
+  const find = String(item?.text || "").trim();
+  const replace = String(item?.restored || "").trim();
+  if (!find || !replace || find === replace) return null;
+  return { find, replace };
+}
+
+export function mergeCorrections(corrections = [], additions = []) {
+  const merged = [...corrections];
+  const byFind = new Map();
+
+  merged.forEach((correction, index) => {
+    const find = String(correction?.find || "").trim();
+    if (find) byFind.set(find.toLowerCase(), index);
+  });
+
+  for (const addition of additions) {
+    const find = String(addition?.find || "").trim();
+    const replace = String(addition?.replace ?? "");
+    if (!find) continue;
+
+    const key = find.toLowerCase();
+    if (byFind.has(key)) {
+      merged[byFind.get(key)] = { ...merged[byFind.get(key)], find, replace };
+    } else {
+      byFind.set(key, merged.length);
+      merged.push({ find, replace });
+    }
+  }
+
+  return merged;
+}
+
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
