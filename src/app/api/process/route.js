@@ -4,7 +4,7 @@ import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist. When given a meeting transcript, you produce highly detailed, structured meeting notes in Markdown format.
 
-Your notes must be extremely thorough — do not omit any important information, decisions, or discussions from the transcript.
+Your notes must be useful and complete, but honor any section-specific word limits.
 
 Do NOT include personal updates, personal check-ins, or personal anecdotes (e.g. weekend plans, health updates, family news, personal status). Focus only on business-relevant content.
 
@@ -28,7 +28,7 @@ Categories to check:
 
 Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
 
-function buildPrompt(transcript, meetingTitle) {
+export function buildPrompt(transcript, meetingTitle) {
   const title = meetingTitle || "Meeting Notes";
 
   return `Please analyze this meeting transcript and create detailed meeting notes.
@@ -44,6 +44,8 @@ ${TAG_CATEGORIES}
 
 Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML frontmatter block.
 
+Word limit: The Executive Summary and Meeting Notes sections together must be 120 words or fewer. Keep those two sections tight; use the later callout, action item, and next step sections for structured follow-up detail.
+
 # ${title}
 
 <tag line: list extracted tags inline as #tag1 #tag2 #tag3>
@@ -52,19 +54,35 @@ Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML fr
 
 ## Executive Summary
 
-Write 3-5 concise sentences capturing the overall purpose, key outcomes, and most important decisions from this meeting.
+Write 1-2 concise sentences capturing the overall purpose, key outcomes, and most important decisions from this meeting. This section counts toward the combined 120-word limit for Executive Summary + Meeting Notes.
 
 ---
 
 ## Meeting Notes
 
-Provide thorough bulleted notes that capture all important information from the transcript. Focus on decisions, key points, and meaningful details — skip filler, repetition, tangential remarks, and personal updates or check-ins. Use sub-bullets for important specifics. Organize by topic when appropriate. Quote or closely paraphrase notable statements.
+Provide concise bulleted notes with only the highest-signal decisions, key points, and meaningful details from the transcript. Skip filler, repetition, tangential remarks, and personal updates or check-ins. This section and Executive Summary together must be 120 words or fewer.
 
 ---
 
 ## Things NI SW Customer Success Should Take Note Of
 
 Flag the most important items for NI Software's Customer Success team. Include: adoption signals, product usage concerns, customer frustrations or praise, risks to renewal or expansion, opportunities for CS to engage, and any commitments made to the customer. Be concise — one clear bullet per point, no filler.
+
+---
+
+## User-Level Callouts
+
+Call out specific customer users, stakeholders, sponsors, admins, evaluators, champions, blockers, or NI/internal contacts who matter to account planning. Include only people actually mentioned in the transcript. For each person, capture role/team if stated, relationship or influence if stated, account-relevant context, and any follow-up implication. If no specific people are mentioned, write "Nothing noted."
+
+- **[Name]** — [role/team or "not stated"]: [account-relevant context and planning implication]
+
+---
+
+## Site-Level Callouts
+
+Call out specific customer sites, labs, campuses, buildings, cities, or named locations mentioned in the transcript. Include only locations actually mentioned. For each site/location, capture associated people or teams if stated, NI software/product context if stated, risks/blockers, and any site-level planning implication. If no specific sites or locations are mentioned, write "Nothing noted."
+
+- **[Site / lab / location]** — [site context, associated stakeholders/teams, software context, and planning implication]
 
 ---
 

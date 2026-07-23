@@ -9,6 +9,7 @@ import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
 import AccountStatus from "@/components/AccountStatus";
 import SystemLinkStatus from "@/components/SystemLinkStatus";
+import StakeholderMap from "@/components/StakeholderMap";
 import SanitizeReview from "@/components/SanitizeReview";
 import {
   applyReplacements,
@@ -21,6 +22,7 @@ import {
 import { calcCost } from "@/lib/pricing";
 import { matchVaultFolder, DEFAULT_ACCOUNTS } from "@/lib/accounts";
 import { aliasesFromReplacements } from "@/lib/privacy";
+import { mergeFileConfigIntoSettings } from "@/lib/settings";
 import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
 
 export default function Home() {
@@ -101,12 +103,7 @@ export default function Home() {
         const data = await res.json();
         if (data.config) {
           setSettings((prev) => {
-            const merged = {
-              ...prev,
-              replacements: data.config.replacements ?? prev.replacements,
-              corrections: data.config.corrections ?? prev.corrections,
-              accounts: data.config.accounts?.length ? data.config.accounts : prev.accounts,
-            };
+            const merged = mergeFileConfigIntoSettings(prev, data.config);
             persistBrowserSettings(merged);
             return merged;
           });
@@ -538,6 +535,14 @@ export default function Home() {
         {/* ── Account Status mode ── */}
         {mode === "status" && (
           <AccountStatus
+            settings={settings}
+            onSettingsClick={() => setShowSettings(true)}
+          />
+        )}
+
+        {/* ── Customer & Site Mapping mode ── */}
+        {mode === "mapping" && (
+          <StakeholderMap
             settings={settings}
             onSettingsClick={() => setShowSettings(true)}
           />
