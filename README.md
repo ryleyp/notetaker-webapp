@@ -42,6 +42,15 @@ Get an API key at [console.anthropic.com](https://console.anthropic.com).
 
 ### 3. Start the app
 
+**Easiest — double-click `Start Notetaker.command` in Finder.** It installs
+dependencies on first run, starts the server, and opens your browser. Leave the
+Terminal window open while you use the app; closing it stops the server.
+
+> First time only: macOS may block it with "unidentified developer." Right-click
+> the file → **Open** → **Open**, and it will run normally from then on.
+
+Or start it from a terminal:
+
 ```bash
 npm run dev
 ```
