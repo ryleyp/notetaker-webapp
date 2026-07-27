@@ -45,6 +45,7 @@ export async function GET(request) {
     config: {
       accounts: cfg?.accounts ?? undefined,
       corrections: cfg?.corrections ?? undefined,
+      templates: cfg?.templates ?? undefined,
       replacements: gls?.replacements ?? cfg?.replacements ?? undefined,
     },
   });
@@ -67,6 +68,7 @@ export async function POST(request) {
         ...existing,
         ...(config.accounts !== undefined && { accounts: config.accounts }),
         ...(config.corrections !== undefined && { corrections: config.corrections }),
+        ...(config.templates !== undefined && { templates: config.templates }),
       });
     }
 

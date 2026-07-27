@@ -5,8 +5,10 @@ import Header from "@/components/Header";
 import SettingsPanel from "@/components/SettingsPanel";
 import MeetingDetails from "@/components/MeetingDetails";
 import TranscriptInput from "@/components/TranscriptInput";
+import UserNotesInput from "@/components/UserNotesInput";
 import FolderSelector from "@/components/FolderSelector";
 import NotesPreview from "@/components/NotesPreview";
+import MeetingChat from "@/components/MeetingChat";
 import AccountStatus from "@/components/AccountStatus";
 import SystemLinkStatus from "@/components/SystemLinkStatus";
 import SanitizeReview from "@/components/SanitizeReview";
@@ -20,19 +22,22 @@ import {
 } from "@/lib/sanitize";
 import { calcCost } from "@/lib/pricing";
 import { matchVaultFolder, DEFAULT_ACCOUNTS } from "@/lib/accounts";
+import { DEFAULT_TEMPLATES, resolveTemplate } from "@/lib/templates";
 import { aliasesFromReplacements } from "@/lib/privacy";
 import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
 
 export default function Home() {
   const [mode, setMode] = useState("new");
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", aiPrivacyScan: true, replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS });
+  const [settings, setSettings] = useState({ vaultPath: "", transcriptsPath: "/Users/ryleypriddy/Documents/Claude", apiKey: "", aiPrivacyScan: true, replacements: [], corrections: [], accounts: DEFAULT_ACCOUNTS, templates: DEFAULT_TEMPLATES });
 
   // New note state
   const [meetingTitle, setMeetingTitle] = useState("");
   const [transcript, setTranscript] = useState("");
+  const [userNotes, setUserNotes] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
   const [model, setModel] = useState("claude-haiku-4-5");
+  const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATES[0].id);
 
   // Sanitization state
   const [sanitizing, setSanitizing] = useState(false);
@@ -73,6 +78,7 @@ export default function Home() {
           replacements: [],
           corrections: [],
           accounts: DEFAULT_ACCOUNTS,
+          templates: DEFAULT_TEMPLATES,
           transcriptsPath: "/Users/ryleypriddy/Documents/Claude",
           aiPrivacyScan: true,
           ...persistedSettings,
@@ -106,6 +112,7 @@ export default function Home() {
               replacements: data.config.replacements ?? prev.replacements,
               corrections: data.config.corrections ?? prev.corrections,
               accounts: data.config.accounts?.length ? data.config.accounts : prev.accounts,
+              templates: data.config.templates?.length ? data.config.templates : prev.templates,
             };
             persistBrowserSettings(merged);
             return merged;
@@ -136,6 +143,7 @@ export default function Home() {
           config: {
             accounts: s.accounts || DEFAULT_ACCOUNTS,
             corrections: s.corrections || [],
+            templates: s.templates?.length ? s.templates : DEFAULT_TEMPLATES,
           },
           glossary: {
             replacements: s.replacements || [],
@@ -180,7 +188,13 @@ export default function Home() {
       applyCorrections(transcript, settings.corrections || []),
       savedReplacements
     );
-    const scanText = [preSanitizedTitle, preSanitizedTranscript].filter(Boolean).join("\n\n");
+    const preSanitizedUserNotes = applyReplacements(
+      applyCorrections(userNotes, settings.corrections || []),
+      savedReplacements
+    );
+    const scanText = [preSanitizedTitle, preSanitizedTranscript, preSanitizedUserNotes]
+      .filter(Boolean)
+      .join("\n\n");
 
     let newEntities = [];
     let scanSkipped = !settings.aiPrivacyScan;
@@ -362,17 +376,24 @@ export default function Home() {
     setActiveReplacements(replacements);
     const corrected = applyCorrections(transcript, settings.corrections || []);
     const correctedTitle = applyCorrections(meetingTitle, settings.corrections || []);
+    const correctedUserNotes = applyCorrections(userNotes, settings.corrections || []);
     const sanitizedTranscript = replacements.length
       ? applyReplacements(corrected, replacements)
       : corrected;
     const sanitizedTitle = replacements.length
       ? applyReplacements(correctedTitle, replacements)
       : correctedTitle;
+    const sanitizedUserNotes = replacements.length
+      ? applyReplacements(correctedUserNotes, replacements)
+      : correctedUserNotes;
+    const template = resolveTemplate(settings.templates, templateId);
 
     await streamGenerateRequest({
       payload: {
         transcript: sanitizedTranscript,
         meetingTitle: sanitizedTitle,
+        userNotes: sanitizedUserNotes.trim() || undefined,
+        notesInstructions: template?.notesInstructions || undefined,
         apiKey: settings.apiKey || undefined,
         model,
       },
@@ -483,6 +504,7 @@ export default function Home() {
   function handleNewNote() {
     setTranscript("");
     setMeetingTitle("");
+    setUserNotes("");
     setNotes("");
     setSaved(false);
     setSavedPath("");
@@ -574,12 +596,26 @@ export default function Home() {
                 todosSaved={todosSaved}
                 cost={noteCost}
               />
+              {!processing && (
+                <MeetingChat
+                  transcript={transcript}
+                  notes={notes}
+                  meetingTitle={meetingTitle}
+                  replacements={activeReplacements}
+                  corrections={settings.corrections || []}
+                  apiKey={settings.apiKey}
+                  model={model}
+                />
+              )}
             </div>
           ) : (
             <>
               <MeetingDetails
                 meetingTitle={meetingTitle}
                 setMeetingTitle={setMeetingTitle}
+                templates={settings.templates?.length ? settings.templates : DEFAULT_TEMPLATES}
+                templateId={templateId}
+                onTemplateChange={setTemplateId}
               />
 
               <TranscriptInput
@@ -587,6 +623,8 @@ export default function Home() {
                 setTranscript={setTranscript}
                 onTitleSuggest={handleTitleSuggest}
               />
+
+              <UserNotesInput userNotes={userNotes} setUserNotes={setUserNotes} />
 
               <FolderSelector
                 vaultPath={settings.vaultPath}

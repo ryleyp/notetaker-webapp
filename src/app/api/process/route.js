@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { assertTrustedRequest } from "@/lib/requestSafety";
+import { DEFAULT_NOTES_INSTRUCTIONS } from "@/lib/templates";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist. When given a meeting transcript, you produce highly detailed, structured meeting notes in Markdown format.
 
@@ -28,8 +29,22 @@ Categories to check:
 
 Only include a tag if that city/state/technology is actually discussed — not just briefly mentioned in passing.`;
 
-function buildPrompt(transcript, meetingTitle) {
+const USER_NOTES_GUIDANCE = `The attendee's rough notes above show what mattered most to them during the meeting. Make sure every point in those notes is covered in the output, expanded with detail from the transcript. Where the rough notes and the transcript disagree on facts, the transcript is the source of truth. Integrate the notes' emphasis into the appropriate sections — do not copy them verbatim or list them separately.`;
+
+function buildPrompt(transcript, meetingTitle, { notesInstructions, userNotes } = {}) {
   const title = meetingTitle || "Meeting Notes";
+  const sectionInstructions = notesInstructions?.trim() || DEFAULT_NOTES_INSTRUCTIONS;
+
+  const userNotesBlock = userNotes?.trim()
+    ? `
+---
+ATTENDEE'S ROUGH NOTES (typed by the attendee during the meeting):
+${userNotes.trim()}
+---
+
+${USER_NOTES_GUIDANCE}
+`
+    : "";
 
   return `Please analyze this meeting transcript and create detailed meeting notes.
 
@@ -39,7 +54,7 @@ Meeting Title: ${title}
 TRANSCRIPT:
 ${transcript}
 ---
-
+${userNotesBlock}
 ${TAG_CATEGORIES}
 
 Generate the meeting notes with EXACTLY this structure. Do NOT include a YAML frontmatter block.
@@ -58,7 +73,7 @@ Write 3-5 concise sentences capturing the overall purpose, key outcomes, and mos
 
 ## Meeting Notes
 
-Provide thorough bulleted notes that capture all important information from the transcript. Focus on decisions, key points, and meaningful details — skip filler, repetition, tangential remarks, and personal updates or check-ins. Use sub-bullets for important specifics. Organize by topic when appropriate. Quote or closely paraphrase notable statements.
+${sectionInstructions}
 
 ---
 
@@ -85,7 +100,7 @@ export async function POST(request) {
     assertTrustedRequest(request);
 
     const body = await request.json();
-    const { transcript, meetingTitle, apiKey, model } = body;
+    const { transcript, meetingTitle, apiKey, model, notesInstructions, userNotes } = body;
 
     if (!transcript || transcript.trim().length === 0) {
       return NextResponse.json({ error: "Transcript is required" }, { status: 400 });
@@ -105,7 +120,7 @@ export async function POST(request) {
       model: model || "claude-sonnet-4-6",
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle) }],
+      messages: [{ role: "user", content: buildPrompt(transcript, meetingTitle, { notesInstructions, userNotes }) }],
     });
 
     const encoder = new TextEncoder();

@@ -55,11 +55,20 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Usage
 
-1. Enter the meeting title and date
+1. Enter the meeting title and date, and pick a meeting type (template)
 2. Paste your transcript or upload a `.txt` file
-3. Select the target folder in your vault (right panel)
-4. Click **Generate Meeting Notes**
-5. Review the preview, then click **Save to Obsidian**
+3. Optionally add your own rough notes from the meeting — Claude uses them to emphasize what mattered to you
+4. Select the target folder in your vault
+5. Click **Generate Meeting Notes**
+6. Review the preview, then click **Save to Obsidian**
+7. Use **Ask About This Meeting** below the preview to chat with the transcript — ask questions, draft a follow-up email, or list open questions and decisions
+
+### Note templates
+
+Meeting types (Customer Call, Internal Sync, 1:1, QBR, Technical Deep-Dive) change only the
+**Meeting Notes** section instructions. Tags, Executive Summary, CS takeaways, Action Items,
+and Next Steps are identical for every template. Templates are editable in Settings and are
+stored in `notetaker-config.json` so they sync across machines.
 
 The file is saved as `YYYY-MM-DD - Meeting Title.md` in your chosen folder.
 

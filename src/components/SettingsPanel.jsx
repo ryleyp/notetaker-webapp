@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DEFAULT_ACCOUNTS } from "@/lib/accounts";
+import { DEFAULT_TEMPLATES, templateIdFromName } from "@/lib/templates";
 import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
 
 export default function SettingsPanel({ settings, onSave, onClose }) {
@@ -13,6 +14,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     model: settings.model || "claude-haiku-4-5",
     replacements: settings.replacements || [],
     corrections: settings.corrections || [],
+    templates: (settings.templates?.length ? settings.templates : DEFAULT_TEMPLATES).map((t) => ({ ...t })),
     // Edit aliases as a comma-separated string; split into an array on save.
     accounts: (settings.accounts?.length ? settings.accounts : DEFAULT_ACCOUNTS).map((a) => ({
       name: a.name || "",
@@ -82,6 +84,25 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
     setForm((f) => ({ ...f, corrections: f.corrections.filter((_, idx) => idx !== i) }));
   }
 
+  function updateTemplate(i, field, value) {
+    setForm((f) => ({
+      ...f,
+      templates: f.templates.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)),
+    }));
+  }
+
+  function addTemplate() {
+    setForm((f) => ({ ...f, templates: [...f.templates, { id: "", name: "", description: "", notesInstructions: "" }] }));
+  }
+
+  function removeTemplate(i) {
+    setForm((f) => ({ ...f, templates: f.templates.filter((_, idx) => idx !== i) }));
+  }
+
+  function restoreDefaultTemplates() {
+    setForm((f) => ({ ...f, templates: DEFAULT_TEMPLATES.map((t) => ({ ...t })) }));
+  }
+
   function updateAccount(i, field, value) {
     setForm((f) => ({
       ...f,
@@ -106,6 +127,16 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
         aliases: a.aliasesText.split(",").map((s) => s.trim()).filter(Boolean),
         keywords: a.keywordsText.split(",").map((s) => s.trim()).filter(Boolean),
       }));
+    const templates = [];
+    for (const t of form.templates) {
+      if (!t.name.trim() || !t.notesInstructions.trim()) continue;
+      templates.push({
+        id: t.id || templateIdFromName(t.name, templates.map((x) => x.id)),
+        name: t.name.trim(),
+        description: (t.description || "").trim(),
+        notesInstructions: t.notesInstructions,
+      });
+    }
     onSave({
       vaultPath: form.vaultPath.trim(),
       transcriptsPath: form.transcriptsPath.trim(),
@@ -114,6 +145,7 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
       model: form.model,
       replacements: form.replacements,
       corrections: form.corrections,
+      templates: templates.length ? templates : DEFAULT_TEMPLATES,
       accounts,
     });
   }
@@ -229,6 +261,66 @@ export default function SettingsPanel({ settings, onSave, onClose }) {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="label">Note Templates</label>
+            <button
+              onClick={restoreDefaultTemplates}
+              className="text-xs text-gray-500 hover:text-gray-700 underline underline-offset-2"
+            >
+              Restore defaults
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            Templates change only the <strong>Meeting Notes</strong> section instructions per meeting type.
+            Everything else — tags, Executive Summary, CS takeaways, Action Items, and Next Steps —
+            stays the same for every template.
+          </p>
+
+          <div className="space-y-3">
+            {form.templates.map((t, i) => (
+              <div key={i} className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="input flex-1"
+                    placeholder="Template name (e.g. Customer Call)"
+                    value={t.name}
+                    onChange={(e) => updateTemplate(i, "name", e.target.value)}
+                  />
+                  <button
+                    onClick={() => removeTemplate(i)}
+                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                    title="Remove template"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Short description shown under the meeting-type picker"
+                  value={t.description || ""}
+                  onChange={(e) => updateTemplate(i, "description", e.target.value)}
+                />
+                <textarea
+                  className="input resize-y text-xs leading-relaxed"
+                  rows={4}
+                  placeholder="Instructions for the Meeting Notes section (what to capture, how to organize it)"
+                  value={t.notesInstructions}
+                  onChange={(e) => updateTemplate(i, "notesInstructions", e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+
+          <button onClick={addTemplate} className="btn-secondary mt-3">
+            + Add template
+          </button>
         </div>
 
         <div>
