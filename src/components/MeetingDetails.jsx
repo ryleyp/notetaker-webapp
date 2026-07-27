@@ -1,6 +1,8 @@
 "use client";
 
-export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
+export default function MeetingDetails({ meetingTitle, setMeetingTitle, templates, templateId, onTemplateChange }) {
+  const selected = templates?.find((t) => t.id === templateId) || templates?.[0];
+
   return (
     <div className="card p-6">
       <div className="flex items-center gap-3 mb-5">
@@ -22,6 +24,26 @@ export default function MeetingDetails({ meetingTitle, setMeetingTitle }) {
           autoFocus
         />
       </div>
+
+      {templates?.length > 0 && (
+        <div className="mt-4">
+          <label className="label">Meeting Type</label>
+          <select
+            className="input"
+            value={selected?.id || ""}
+            onChange={(e) => onTemplateChange(e.target.value)}
+          >
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          {selected?.description && (
+            <p className="mt-1.5 text-xs text-gray-400">{selected.description}</p>
+          )}
+        </div>
+      )}
 
       {meetingTitle && (
         <p className="mt-3 text-xs text-gray-400">

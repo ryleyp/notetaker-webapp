@@ -65,6 +65,20 @@ Vault path, transcripts archive path, API key, model selector (Haiku/Sonnet), gl
 replacements, common corrections, and the per-account editor (name / archive folder /
 aliases). Vault path must be the **plain** path — no shell escaping/backslashes.
 
+## Granola-style features (New Note tab)
+- **Templates** (`src/lib/templates.js`): each template swaps ONLY the "## Meeting Notes"
+  section instructions; tag line, Executive Summary, CS takeaways, Action Items, and Next
+  Steps are fixed in `process/route.js` for every template. Picker lives in
+  `MeetingDetails.jsx`; editor in Settings; persisted under `templates` in
+  `notetaker-config.json`.
+- **Your Notes** (`UserNotesInput.jsx`, step 3): optional rough in-meeting bullets, sent as
+  `userNotes` to `/api/process`. Prompt treats them as the emphasis guide; transcript stays
+  the source of truth. Sanitized/pseudonymized exactly like the transcript.
+- **Meeting chat** (`MeetingChat.jsx` + `/api/chat`): post-generation Q&A over the transcript
+  + notes with SSE streaming, quick actions (follow-up email, open questions, key decisions),
+  and per-session cost total. Outgoing text is aliased via replacements; responses are
+  restored client-side. System prompt forbids guessing what aliases stand for.
+
 ## Recent commit history (newest first)
 - Model-aware synthesis token budget (drop fewer notes)
 - Require account-name match for cross-folder SL notes
