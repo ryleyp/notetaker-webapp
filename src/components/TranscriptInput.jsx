@@ -3,16 +3,66 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { StepBadge } from "@/components/MeetingDetails";
 import { apiFetch } from "@/lib/apiClient";
+import { combineSources } from "@/lib/transcriptSources";
+
+let nextSourceId = 1;
+function newSource(label = "") {
+  return { id: `src-${nextSourceId++}`, label, text: "" };
+}
+
+function countWords(text) {
+  return text.trim() ? text.trim().split(/\s+/).length : 0;
+}
 
 export default function TranscriptInput({ transcript, setTranscript, onTitleSuggest }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState("paste");
-  const [waiting, setWaiting] = useState(false);
-  const [received, setReceived] = useState(false);
+  // Multiple recordings of the same meeting (e.g. Teams + a voice memo) are
+  // held separately here and combined into the single transcript string the
+  // rest of the pipeline consumes.
+  const [sources, setSources] = useState(() => [newSource()]);
+  const [isDragging, setIsDragging] = useState(null); // source id being dragged over
+  const [waitingFor, setWaitingFor] = useState(null); // source id awaiting a voice memo
   const fileInputRef = useRef(null);
+  const uploadTargetRef = useRef(null);
   const pollRef = useRef(null);
 
-  const handleFile = useCallback((file) => {
+  // Push the combined document upward whenever any source changes.
+  useEffect(() => {
+    setTranscript(combineSources(sources));
+  }, [sources, setTranscript]);
+
+  // If the transcript is cleared or replaced from outside (New Note, or the
+  // speaker-detection flow rewriting it), fold it back into a single source.
+  useEffect(() => {
+    setSources((prev) => {
+      if (combineSources(prev) === transcript) return prev;
+      if (!transcript) return [newSource()];
+      const single = newSource(prev[0]?.label || "");
+      single.text = transcript;
+      return [single];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript]);
+
+  const updateSource = useCallback((id, patch) => {
+    setSources((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  }, []);
+
+  const addSource = () => {
+    setSources((prev) => {
+      // Suggest labels only once a second source exists, so they're distinguishable.
+      const first = prev.length === 1 && !prev[0].label.trim()
+        ? [{ ...prev[0], label: "Teams transcript" }]
+        : prev;
+      return [...first, newSource(prev.length === 1 ? "Voice memo" : "")];
+    });
+  };
+
+  const removeSource = (id) => {
+    setSources((prev) => (prev.length <= 1 ? prev : prev.filter((s) => s.id !== id)));
+    if (waitingFor === id) stopWaiting();
+  };
+
+  const handleFile = useCallback((file, sourceId) => {
     if (!file) return;
     if (!file.type.startsWith("text/") && !file.name.endsWith(".txt") && !file.name.endsWith(".md")) {
       alert("Please upload a plain text file (.txt or .md)");
@@ -20,57 +70,48 @@ export default function TranscriptInput({ transcript, setTranscript, onTitleSugg
     }
     const reader = new FileReader();
     reader.onload = (e) => {
-      setTranscript(e.target.result);
-      if (onTitleSuggest) {
-        const name = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-        onTitleSuggest(name);
-      }
+      const name = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      setSources((prev) =>
+        prev.map((s) => (s.id === sourceId ? { ...s, text: e.target.result, label: s.label || name } : s))
+      );
+      // Only the first source suggests the meeting title.
+      setSources((prev) => {
+        if (prev[0]?.id === sourceId && onTitleSuggest) onTitleSuggest(name);
+        return prev;
+      });
     };
     reader.readAsText(file);
-  }, [setTranscript, onTitleSuggest]);
+  }, [onTitleSuggest]);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFile(e.dataTransfer.files[0]);
-  }, [handleFile]);
-
-  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = () => setIsDragging(false);
-
-  function startWaiting() {
-    setWaiting(true);
-    setReceived(false);
+  function startWaiting(sourceId) {
+    setWaitingFor(sourceId);
     pollRef.current = setInterval(async () => {
       try {
         const res = await apiFetch("/api/receive-transcript");
         const data = await res.json();
         if (data.pending) {
           stopWaiting();
-          setTranscript(data.transcript);
+          setSources((prev) =>
+            prev.map((s) =>
+              s.id === sourceId ? { ...s, text: data.transcript, label: s.label || "Voice memo" } : s
+            )
+          );
           if (data.title && onTitleSuggest) onTitleSuggest(data.title);
-          setReceived(true);
-          setActiveTab("paste");
         }
       } catch {}
     }, 1500);
   }
 
   function stopWaiting() {
-    setWaiting(false);
+    setWaitingFor(null);
     clearInterval(pollRef.current);
     pollRef.current = null;
   }
 
-  // Clean up on unmount
   useEffect(() => () => clearInterval(pollRef.current), []);
 
-  function handleTabChange(tab) {
-    if (activeTab === "voice" && waiting) stopWaiting();
-    setActiveTab(tab);
-  }
-
-  const wordCount = transcript.trim() ? transcript.trim().split(/\s+/).length : 0;
+  const multi = sources.length > 1;
+  const totalWords = countWords(transcript);
 
   return (
     <div className="card p-6">
@@ -78,124 +119,133 @@ export default function TranscriptInput({ transcript, setTranscript, onTitleSugg
         <StepBadge n={2} />
         <div>
           <h2 className="text-base font-semibold text-gray-900">Meeting Transcript</h2>
-          <p className="text-xs text-gray-500">Paste, upload, or import from Voice Memos</p>
+          <p className="text-xs text-gray-500">
+            Paste, upload, or import from Voice Memos. Have two recordings of the same meeting?
+            Add both — they'll be merged into one set of notes.
+          </p>
         </div>
       </div>
 
-      <div className="flex gap-1 mb-3">
-        {[
-          { id: "paste", label: "Paste Text" },
-          { id: "upload", label: "Upload File" },
-          { id: "voice", label: "Voice Memo" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id)}
-            className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
-              activeTab === tab.id
-                ? "bg-obsidian-600 text-white"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.md,text/*"
+        className="hidden"
+        onChange={(e) => {
+          handleFile(e.target.files[0], uploadTargetRef.current);
+          e.target.value = "";
+        }}
+      />
+
+      <div className="space-y-3">
+        {sources.map((source, i) => {
+          const words = countWords(source.text);
+          const waiting = waitingFor === source.id;
+          return (
+            <div
+              key={source.id}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(null);
+                handleFile(e.dataTransfer.files[0], source.id);
+              }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(source.id); }}
+              onDragLeave={() => setIsDragging(null)}
+              className={`rounded-lg border transition-colors ${
+                isDragging === source.id ? "border-obsidian-400 bg-obsidian-50" : "border-gray-200"
+              } ${multi ? "p-3" : "p-0 border-0"}`}
+            >
+              {multi && (
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={source.label}
+                    onChange={(e) => updateSource(source.id, { label: e.target.value })}
+                    placeholder="Where this came from (e.g. Teams transcript)"
+                    className="input flex-1 text-xs py-1"
+                  />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{words.toLocaleString()} words</span>
+                  <button
+                    onClick={() => removeSource(source.id)}
+                    title="Remove this source"
+                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              <textarea
+                className="input resize-y font-mono text-xs leading-relaxed"
+                rows={multi ? 8 : 14}
+                placeholder={
+                  i === 0
+                    ? "Paste your meeting transcript here, drop a .txt/.md file, or use the buttons below..."
+                    : "Paste the second transcript of this same meeting..."
+                }
+                value={source.text}
+                onChange={(e) => updateSource(source.id, { text: e.target.value })}
+              />
+
+              <div className="flex items-center gap-3 mt-1.5">
+                <button
+                  onClick={() => { uploadTargetRef.current = source.id; fileInputRef.current?.click(); }}
+                  className="text-xs text-gray-500 hover:text-obsidian-600"
+                >
+                  Upload file
+                </button>
+                {waiting ? (
+                  <span className="flex items-center gap-1.5 text-xs text-obsidian-600">
+                    <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Waiting for Voice Memo — run your Shortcut
+                    <button onClick={stopWaiting} className="text-gray-400 hover:text-gray-600 underline ml-1">
+                      cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => startWaiting(source.id)}
+                    disabled={waitingFor !== null}
+                    className="text-xs text-gray-500 hover:text-obsidian-600 disabled:opacity-40"
+                  >
+                    Import Voice Memo
+                  </button>
+                )}
+                {!multi && words > 0 && (
+                  <span className="text-xs text-gray-400 ml-auto">{words.toLocaleString()} words</span>
+                )}
+                {source.text && (
+                  <button
+                    onClick={() => updateSource(source.id, { text: "" })}
+                    className={`text-xs text-red-500 hover:text-red-700 ${multi ? "ml-auto" : ""}`}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {activeTab === "paste" && (
-        <textarea
-          className="input resize-none font-mono text-xs leading-relaxed"
-          rows={14}
-          placeholder="Paste your meeting transcript here..."
-          value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
-        />
-      )}
-
-      {activeTab === "upload" && (
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => fileInputRef.current?.click()}
-          className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer transition-colors ${
-            isDragging
-              ? "border-obsidian-400 bg-obsidian-50"
-              : "border-gray-300 hover:border-obsidian-400 hover:bg-gray-50"
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,.md,text/*"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files[0])}
-          />
-          <svg className="w-10 h-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          {transcript ? (
-            <div className="text-center">
-              <p className="text-sm font-medium text-green-600">File loaded!</p>
-              <p className="text-xs text-gray-500 mt-1">{wordCount.toLocaleString()} words</p>
-              <p className="text-xs text-gray-400 mt-1">Click to replace</p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <p className="text-sm font-medium text-gray-700">Drop your transcript here</p>
-              <p className="text-xs text-gray-500 mt-1">or click to browse — .txt or .md files</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "voice" && (
-        <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-12 gap-4">
-          {received ? (
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 text-green-600 mb-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-base font-medium">Transcript received!</span>
-              </div>
-              <p className="text-xs text-gray-500">{wordCount.toLocaleString()} words loaded — switch to Paste Text to review</p>
-            </div>
-          ) : waiting ? (
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 text-obsidian-600 mb-3">
-                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <span className="text-sm font-medium">Waiting for Voice Memo...</span>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">Run your Shortcut in Voice Memos to send the transcript here</p>
-              <button onClick={stopWaiting} className="btn-secondary text-xs">Cancel</button>
-            </div>
-          ) : (
-            <div className="text-center">
-              <svg className="w-10 h-10 text-gray-400 mb-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-              <p className="text-sm font-medium text-gray-700 mb-1">Import from Voice Memos</p>
-              <p className="text-xs text-gray-500 mb-4">Click below, then run your Shortcut in Voice Memos</p>
-              <button onClick={startWaiting} className="btn-primary">
-                Wait for Voice Memo
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {transcript && activeTab !== "voice" && (
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-xs text-gray-500">{wordCount.toLocaleString()} words</p>
-          <button onClick={() => setTranscript("")} className="text-xs text-red-500 hover:text-red-700">
-            Clear
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between mt-3">
+        <button onClick={addSource} className="btn-secondary text-xs">
+          + Add another recording of this meeting
+        </button>
+        {multi && (
+          <span className="text-xs text-gray-400">
+            {sources.length} sources · {totalWords.toLocaleString()} words total → one merged note
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { looksSpeakerLabeled } from "@/lib/speakers";
+import { looksMultiSource, listSourceLabels } from "@/lib/transcriptSources";
 import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist working for a Customer Success Manager (CSM) at NI (National Instruments). The person who recorded this meeting is that CSM — their job is driving adoption, expansion, and renewal of NI products at large customer accounts.
@@ -91,6 +92,22 @@ CONFLICT FLAGGING: If the CSM's notes DIRECTLY conflict with the transcript on a
     ? `\nEA/EP NUMBERS ON FILE FOR THIS ACCOUNT (matched to this meeting by keyword): ${suggestedAgreements.map((g) => `${g.type} ${g.number}`).join(", ")}. In the SFDC Activity Entry, output an "**EA/EP Number(s):**" line listing the one(s) relevant to what this meeting was actually about, copied verbatim. If more than one clearly applies, list all. Do not invent or alter numbers, and do not list a number if nothing in the meeting relates to it.`
     : `\nNo EA/EP numbers are on file for this account. In the SFDC Activity Entry, output "**EA/EP Number(s):** None on file".`;
 
+  // Two or more recordings of the SAME meeting (e.g. Teams + a voice memo).
+  // They must be reconciled into ONE set of notes, not summarized separately.
+  const multiSourceGuidance = looksMultiSource(transcript)
+    ? `
+MULTIPLE SOURCES — IMPORTANT: The transcript below contains ${listSourceLabels(transcript).length} separate recordings of the SAME meeting, each introduced by a "===== SOURCE N: label =====" header (${listSourceLabels(transcript).join("; ")}). They are not different meetings.
+
+- Produce ONE unified set of notes covering the meeting as a whole. Never write per-source sections, and never repeat a point just because it appears in more than one source.
+- Treat the sources as complementary. Where they overlap, use whichever version is clearer or more complete. Where only one source captured something (one may cut off early, miss a speaker, or add context the other lacks), include it — coverage should be the union of the sources.
+- The same statement appearing in several sources is ONE fact, not corroboration to emphasize. Deduplicate action items and next steps across sources.
+- Prefer a source that attributes statements to named speakers when deciding who said what.
+- Never mention the sources, their labels, or the fact that multiple recordings exist anywhere in the output — the reader wants the meeting, not the plumbing.
+
+SOURCE CONFLICT FLAGGING: If two sources DIRECTLY contradict each other on a fact — a different number, date, owner, decision, product, or outcome — add a section titled "## ⚠️ Source Conflicts" immediately after the Executive Summary (an allowed addition to the required structure below). One bullet per conflict, naming which source said what: "[Source label] says [X], but [other source label] says [Y]". Elsewhere in the notes use the version from the more complete or speaker-attributed source. Only real contradictions belong here — differing detail level, wording, or coverage is not a conflict. Omit the section entirely when there are none.
+`
+    : "";
+
   const speakerGuidance = looksSpeakerLabeled(transcript)
     ? `
 This transcript has been segmented by speaker — each turn is preceded by a label like **Name:** or **Speaker 1:**. Use these labels to attribute statements, decisions, questions, and commitments to the correct person throughout your notes (e.g. "David raised concerns about..." or "Speaker 2 confirmed..."). Do not blend or merge different speakers' statements together. When listing action item owners, use the specific speaker who committed to the item rather than a generic "team," unless it is genuinely a group commitment. The labels are a best-effort inference from conversational patterns, not verified — if a label is a generic "Speaker N" (no real name was available), it's fine to refer to that person by that label in your notes.
@@ -100,7 +117,7 @@ This transcript has been segmented by speaker — each turn is preceded by a lab
   return `Please analyze this meeting transcript and create detailed meeting notes.
 
 Meeting Title: ${title}
-${speakerGuidance}${contextBlock}
+${multiSourceGuidance}${speakerGuidance}${contextBlock}
 ---
 TRANSCRIPT:
 ${transcript}

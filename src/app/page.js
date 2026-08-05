@@ -24,6 +24,7 @@ import {
 import { calcCost } from "@/lib/pricing";
 import { matchVaultFolder, detectAccount, suggestAgreements, DEFAULT_ACCOUNTS } from "@/lib/accounts";
 import { looksSpeakerLabeled } from "@/lib/speakers";
+import { looksMultiSource } from "@/lib/transcriptSources";
 import { aliasesFromReplacements } from "@/lib/privacy";
 import { mergeFileConfigIntoSettings } from "@/lib/settings";
 import { apiFetch, approveLocalPaths } from "@/lib/apiClient";
@@ -714,13 +715,15 @@ export default function Home() {
                   <div>
                     <p className="text-sm font-medium text-gray-800">Distinguish speakers</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {looksSpeakerLabeled(transcript)
+                      {looksMultiSource(transcript)
+                        ? "Unavailable while multiple recordings are loaded — it would re-segment both copies into one doubled transcript. Remove the extra source to use it."
+                        : looksSpeakerLabeled(transcript)
                         ? "This transcript has speaker labels — notes will attribute statements to the right person."
                         : "No speaker labels detected. Claude can infer likely speaker turns from conversational patterns (best-effort, not real diarization)."}
                     </p>
                     {speakerError && <p className="text-xs text-red-600 mt-1">{speakerError}</p>}
                   </div>
-                  <button onClick={handleDetectSpeakers} disabled={detectingSpeakers} className="btn-secondary whitespace-nowrap">
+                  <button onClick={handleDetectSpeakers} disabled={detectingSpeakers || looksMultiSource(transcript)} className="btn-secondary whitespace-nowrap">
                     {detectingSpeakers ? (
                       <>
                         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
