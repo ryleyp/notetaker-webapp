@@ -2,6 +2,40 @@ import { describe, expect, it } from "vitest";
 import { buildPrompt } from "./route";
 import { combineSources } from "@/lib/transcriptSources";
 
+describe("SFDC activity voice rules", () => {
+  const prompt = buildPrompt("Jordan discussed the Dallas lab rollout.", "Planning Sync");
+
+  it("bans passive voice while keeping the no-first-person rule", () => {
+    expect(prompt).toContain('no first person ("I"/"we")');
+    expect(prompt).toContain("does NOT mean passive voice");
+    expect(prompt).toContain("Drop the subject instead");
+  });
+
+  it("allows contractions and fragments so it reads like a person", () => {
+    expect(prompt).toContain("Contractions are good");
+    expect(prompt).toContain("Fragments are fine");
+  });
+
+  it("gives a concrete too-formal vs right example", () => {
+    expect(prompt).toContain("VOICE EXAMPLE");
+    expect(prompt).toContain("Too formal (never write like this)");
+    expect(prompt).toContain("Right (write like this)");
+    // The bad example must appear before the good one so the contrast reads correctly.
+    expect(prompt.indexOf("Too formal")).toBeLessThan(prompt.indexOf("Right (write like this)"));
+  });
+
+  it("blocks the usual corporate filler and nominalizations", () => {
+    for (const word of ["synergy", "circle back", "touch base", "utilize", "facilitate"]) {
+      expect(prompt).toContain(word);
+    }
+    expect(prompt).toContain("Kill nominalizations");
+  });
+
+  it("still enforces the 120-word SFDC cap", () => {
+    expect(prompt).toContain("at most 120 words and 800 characters or fewer");
+  });
+});
+
 describe("buildPrompt with multiple transcript sources", () => {
   const combined = combineSources([
     { label: "Teams transcript", text: "Jordan confirmed the rollout." },
