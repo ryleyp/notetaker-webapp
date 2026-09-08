@@ -3,6 +3,7 @@ import { applyCorrections, applyReplacements } from "@/lib/sanitize";
 import { scrubWithExceptions } from "@/lib/scrub";
 import { assertTrustedRequest } from "@/lib/requestSafety";
 import { BATCH_TEMPORAL_RULE, TEMPORAL_ACCURACY_RULE, dateSortValue } from "@/lib/synthesisPolicy";
+import { detailedTaxonomy, SFDC_VOICE_RULES, normalizePair } from "@/lib/sfdcTaxonomy";
 
 function buildExclusionList(accountName, allAccounts) {
   if (!allAccounts?.length) return "";
@@ -409,7 +410,7 @@ List any cases where a newer source contradicts, reverses, or materially updates
 Priority actions for the CS team related to ${p} in the coming weeks.`;
 }
 
-function buildCSMActivityPrompt(notes, today, accountName, allAccounts, range, resumeRows) {
+function buildCSMActivityPrompt(notes, today, accountName, allAccounts, range, resumeRows, exampleRows) {
   let rangeStart = range?.start ? new Date(range.start) : null;
   if (rangeStart && isNaN(rangeStart.getTime())) rangeStart = null;
   if (!rangeStart) {
@@ -456,9 +457,13 @@ Field rules:
 - **sourceTitle**: the exact title of the source note this activity came from, copied verbatim from its ### heading (the part after the date). Every row MUST cite its source.
 - **title**: short descriptive name matching the style of these real examples — "L3Harris RF User Group - March 2026", "CSM / FAE NGC Account Interlock", "NI Connect Promotional Email", "LM MFC Proficiency Plan - LabVIEW Core Training Scheduling"
 - **type** and **subtype**: must exactly match one option from the taxonomy below
-- **comments**: max 800 characters. Write for an executive audience. CSM is the active subject (e.g. "CSM coordinated...", "CSM submitted..."). Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk.
+- **comments**: max 800 characters. Name specific contacts and titles. Lead with what happened and why it matters. Connect to adoption, expansion, renewal, or risk. Follow the COMMENT VOICE rules below exactly.
 - **review**: set to true ONLY when you are genuinely unsure of the type/subtype classification (e.g. a session that could be either Demo Days or User Group), with a short reviewReason explaining the ambiguity. When confident, use false and an empty reviewReason.
 
+${exampleRows?.length ? `
+ROWS YOU PREVIOUSLY APPROVED — the user reviewed and filed these, so they are the ground truth for classification and voice. Match how they pick Type/Subtype and how the comments read. Do NOT copy their content or re-report these activities.
+${exampleRows.map((r) => `- [${r.type} / ${r.subtype}] ${r.title}\n  ${r.comments}`).join("\n")}
+` : ""}
 CLASSIFICATION PROCESS — for each activity, evaluate ALL 6 Type options before selecting. Do not stop at the first type that seems plausible:
 
 IMPORTANT DEFINITION — **EA Admin**: a customer-side IT administrator (employed by Frontgrade, Lockheed Martin, Northrop Grumman, L3Harris, etc.) who runs the EA or maintains NI licensing on their company's behalf. EA Admins are NOT NI employees. Any meeting with an EA Admin is a customer-facing activity — never Internal Alignment.
@@ -482,68 +487,16 @@ For each activity, silently verify your choice by asking: "Is there a more speci
 
 EA ENGAGEMENT TYPE TAXONOMY — use the EXACT text shown below for both Type and Subtype (copy it character-for-character). Read descriptions and examples before picking.
 
-**Type: Entitlement Awareness & Promotion** — activities promoting awareness or use of EA entitlements:
-  - Digital Campaign/Promotion — email/digital outreach campaigns promoting training, events, or EA awareness (e.g. NI Connect promo emails, training registration drives, event promotions)
-    Example: "Launched NI Connect promotional email campaign to NGC contacts, targeting registration and identifying potential presenters for the NGC-sponsored session. Campaign supports expansion positioning."
-  - MidTerm Reviews — formal midpoint EA review with the customer covering usage and ROI
-  - Newsletters — quarterly newsletters to account contacts covering product highlights, events, training, key POCs
-    Example: "Distributed Q1 FY26 EA Quarterly Newsletter to L3Harris contacts. Content included NI product highlights, NI Connect event promotion, L3Harris-specific upcoming events, training resources, and key NI POC information. Reinforced EA value awareness."
-  - Shared Space Set-up/Update — setting up or updating a shared portal or resource hub
-  - Training/Support Plans — creating or scheduling a formal training plan across sites/teams
-    Example: "Sync with Jordan (GTS, LM MFC), Nicole, and Angelica (NI Education Services) to scope LabVIEW Core 1 and Core 2 training across MFC sites. MFC holds ~7,600 EA training credits over 3 years. Confirmed in-person, instructor-led format."
-  - Training/Support Webinar — delivering a live training or support session to users
-  - Other
+${detailedTaxonomy()}
 
-**Type: Internal Alignment & Collaboration** — NI-internal sessions (no customer present). Only log if a clear decision or outcome resulted:
-  - Account Planning — CSM/FAE interlock, account strategy sessions, NI Connect planning calls, internal alignment that produced a defined outcome
-    Example: "CSM/FAE FY26 account interlock for Northrop Grumman. Reviewed CS focus areas, current usage data trends, and CS execution plan including site-level priorities. Identified specific gaps in FAE workflow where CSM provides strategic coverage."
-  - Account Team Kick-Off — formal kickoff session with the full internal account team (CSM, FAE, AM, etc.)
-    Example: "CSM/FAE Interlock for FY 2026, reviewing CS Focus Areas, overview of usage data trends, CS execution plans including site level and event calendar, and brainstorming session on where CS can help fill in gaps in the FAE workflow."
-  - Product Feedback — internal session to escalate or document customer product feedback
-  - Other — recurring internal team syncs (e.g. biweekly account team calls) when they produced a concrete outcome
-
-**Type: Onboarding & Kick-Off** — onboarding new admins or users:
-  - EA Admin Onboarding — onboarding a new customer-side EA Admin (customer IT administrator who runs the EA or maintains NI licensing for their company) to EA scope, entitlements, and governance. This is always a customer-facing meeting.
-    Example: "EA Admin onboarding session for two new L3Harris EA Admins who recently took over the role. Session covered the full scope of the EA (software entitlements, training credits, etc.), admin Q&A, and established understanding of internal processes."
-  - EA End-User Kick-Off — introduction or review of EA terms, entitlements, and inclusions with customer end users
-  - Other
-
-**Type: Strategic Relationship Management** — high-touch customer-facing relationship and governance activities:
-  - EA Admin Sync — recurring or ad-hoc sync with the customer-side EA Admin (customer IT administrator who runs the EA or maintains NI licensing for their company) or other key customer stakeholders. These contacts are NOT NI employees.
-    Example: "Frontgrade TestStand Pilot Check In and EA Renewal Alignment — Meeting with Marc Pevotaux to review pilot status and align on renewal timeline."
-  - Escalation/Risk Management — active risk mitigation, escalations, or at-risk situations
-    Example: "Active R&D escalation on behalf of Bret Ridgel (Northrop Grumman) related to a TKM505X IVI driver issue preventing LabVIEW control of the Tektronix MSO46B. Original FAE ticket stalled after R&D contacts left NI. CSM submitted an R&D Advocacy request to unblock."
-  - QBRs/EBRs — formal quarterly or executive business review
-  - Roadmap Review — session reviewing NI product roadmap with customer stakeholders
-  - SLE Governance — SystemLink Enterprise governance meetings
-  - Other
-
-**Type: User Groups** — group sessions with multiple attendees. Pick subtype based on who led the session:
-  - Demo Days — NI-led session where NI/FAE presents or demos products to the customer
-    Comment format: "[Title] — Region: [X], Attendees: [#]. [Description of session content and who led it.] Outcome: [adoption / expansion / risk reduction / customer momentum]"
-    Example: "L3Harris RF User Group — Region: AMER, Attendees: 22. FAE and AM led users through an overview of NI RF Hardware Platforms and demoed InstrumentStudio. Session targeted RF-focused sites. Outcome: Drove direct product exposure across the RF engineering community and generated adoption momentum at targeted sites."
-  - User Group — customer-sponsored recurring session; may include NI content but customer drives cadence/agenda
-    Comment format: "[Title] — Region: [X], Attendees: [#]. [Description]. Outcome: [impact]"
-    Example: "LMS User Group — Region: AMER, Participants: TBD. Conducted an LMS user group session focused on important updates to the LMS NI EA and entitlements. Maintained customer momentum and reinforced awareness of EA value."
-  - Other — planning or brainstorming sessions tied to user group execution (e.g. pre-UG sponsor sync)
-  ⚠️ NI-led demo sessions = Demo Days. Customer-sponsored recurring groups = User Group. Pre-UG planning calls = Other.
-
-**Type: Value Realization & Success Stories** — capturing or communicating customer outcomes and ROI:
-  - Case Study — written or formal case study in progress or completed
-    Example: "Initiated SystemLink case study with Eric Reek (IT Admin Lead, L3Harris) documenting the successful deployment of SystemLink Server at L3Harris Florida sites. Sessions held 3/11 and 3/12 to capture deployment scope, outcomes, and measurable value."
-  - Customer Testimonial — capturing a customer success quote or formal testimonial
-  - Outcome Review — reviewing measured outcomes and value delivered
-  - SLE ROI Review — formal ROI review specific to SystemLink Enterprise
-  - Other
-
-**Type: Other** — only use if truly none of the above types fit.
+COMMENT VOICE — these land in the same Salesforce comment box as every other activity, so they must sound like the same person wrote them. Write like a CSM in their late twenties banging out notes right after the call, not like a formal report.
+${SFDC_VOICE_RULES}
 
 COMMENT REQUIREMENTS:
-- Use "CSM" as the active subject (e.g., "CSM coordinated...", "CSM submitted...", "CSM/FAE interlock...") — never I/we/my
 - Name specific people by name and title when available (e.g., "Eric Reek, IT Admin Lead")
 - Every comment must answer: what happened, who was involved, and why it matters — do not just describe logistics
 - State outcomes explicitly: what did this drive? (adoption, expansion signal, renewal positioning, risk reduction, customer momentum)
-- Show CSM ownership and leadership — describe what CSM drove, defined, or decided, not just that a meeting occurred
+- Show ownership — describe what was driven, defined, or decided, not just that a meeting occurred
 - Connect to revenue where possible — note how the activity ties to expansion, adoption health, or renewal
 - Be specific — reference actual product names, site names, topics discussed, decisions made
 - For Demo Days and User Groups: always include Region, Attendees (or TBD), topics, and Outcome
@@ -743,7 +696,7 @@ export async function POST(request) {
     assertTrustedRequest(request);
 
     const body = await request.json();
-    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [], rangeStart, rangeEnd, resumeRows = [] } = body;
+    const { notes, apiKey, model, today, replacements = [], corrections = [], productFocus, promptType, accountName, allAccounts = [], restoredIds = [], rangeStart, rangeEnd, resumeRows = [], exampleRows = [] } = body;
 
     if (!notes || notes.length === 0) {
       return new Response(JSON.stringify({ error: "No notes provided" }), { status: 400, headers: { "Content-Type": "application/json" } });
@@ -760,6 +713,15 @@ export async function POST(request) {
       eventDate: r?.eventDate || "",
       title: applyReplacements(applyCorrections(r?.title || "", corrections), replacements),
     }));
+
+    // Previously approved rows used as few-shot examples — same sanitize
+    // pipeline as note content, and type/subtype normalized so a legacy
+    // spelling in history can't teach the model the wrong picklist value.
+    const clean = (t) => applyReplacements(applyCorrections(t || "", corrections), replacements);
+    const sanitizedExampleRows = (exampleRows || []).slice(0, 8).map((r) => {
+      const { type, subtype } = normalizePair(r?.type, r?.subtype);
+      return { type, subtype, title: clean(r?.title), comments: clean(r?.comments).slice(0, 800) };
+    }).filter((r) => r.title && r.comments);
 
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
@@ -804,7 +766,7 @@ export async function POST(request) {
             messages: [{
               role: "user",
               content: promptType === "csm-activity"
-                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts, { start: rangeStart, end: rangeEnd }, sanitizedResumeRows)
+                ? buildCSMActivityPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts, { start: rangeStart, end: rangeEnd }, sanitizedResumeRows, sanitizedExampleRows)
                 : productFocus
                 ? buildProductPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], productFocus, accountName, allAccounts)
                 : buildSynthesisPrompt(taggedNotes, today || new Date().toISOString().split("T")[0], accountName, allAccounts),

@@ -31,14 +31,15 @@ WHAT IT OUTPUTS
 ---------------
 A Markdown table with one row per reportable activity:
 
-  | Account | Event Date | Engagement Title | Type | Subtype | Comments |
+  | Event Date | Title | Type | Subtype | EA/EP | Comments |
 
 - Account         — the account name (from the folder you selected)
 - Event Date      — pulled from the ### YYYY-MM-DD heading of the source note
 - Engagement Title — short descriptive name matching SFDC style
 - Type            — one of 6 EA Engagement Types (see taxonomy below)
 - Subtype         — specific subtype within that Type
-- Comments        — up to 1,000 characters; executive-facing, CSM as subject
+- Comments        — up to 800 characters; written in the same plain,
+                    typed-by-a-person voice as the New Note SFDC entry
 
 
 WHAT IT INCLUDES / EXCLUDES

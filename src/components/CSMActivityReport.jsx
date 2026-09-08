@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import FolderSelector from "@/components/FolderSelector";
 import ActivityPreview from "@/components/ActivityPreview";
 import { detectAccount } from "@/lib/accounts";
 import { reverseReplacements } from "@/lib/sanitize";
 import { useReportWorkflow, TODAY } from "@/hooks/useReportWorkflow";
 import { ScanButton, CountsBadges, NoteList, GeneratePanel, PreflightPanel, OutputHeader, HistoryMenu, BleedWarning, StrictToggle } from "@/components/ReportSections";
-import { parseActivityRows, rowsToNDJSON, rowsToMarkdown } from "@/lib/activityRows";
+import { parseActivityRows, rowsToNDJSON, rowsToMarkdown, sortRows, rowKey } from "@/lib/activityRows";
+import { partitionNotes } from "@/lib/sfdcSection";
+import { loadFiled, toggleFiled } from "@/lib/filedRows";
+import { suggestAgreements } from "@/lib/accounts";
+import { apiFetch } from "@/lib/apiClient";
 
 function toISO(d) {
   return d.toISOString().split("T")[0];
@@ -68,9 +72,14 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
   const [rangeStart, setRangeStart] = useState(defaultRangeStart());
   const [rangeEnd, setRangeEnd] = useState(TODAY);
   const [verifying, setVerifying] = useState(false);
+  const [filed, setFiled] = useState(() => new Set());
+  const [regenIndex, setRegenIndex] = useState(null);
   const [bleedRow, setBleedRow] = useState(null); // row index being flagged
   const [bleedAccount, setBleedAccount] = useState("");
   const [bleedTerms, setBleedTerms] = useState("");
+
+  const exampleRowsRef = useRef([]);
+  useEffect(() => { setFiled(loadFiled()); }, []);
 
   const wf = useReportWorkflow({
     settings,
@@ -80,11 +89,38 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
       params.set("startDate", rangeStart);
       params.set("endDate", rangeEnd);
     },
-    synthesizeExtras: () => ({ promptType: "csm-activity", rangeStart, rangeEnd }),
+    synthesizeExtras: () => ({ promptType: "csm-activity", rangeStart, rangeEnd, exampleRows: exampleRowsRef.current }),
   });
 
-  const rows = useMemo(() => parseActivityRows(wf.output), [wf.output]);
   const accountName = detectAccount(wf.selectedFolder, settings.accounts).name;
+  const account = useMemo(
+    () => (settings.accounts || []).find((a) => a.name === accountName),
+    [settings.accounts, accountName]
+  );
+
+  // Sort newest-first, fill in the EA/EP number for generated rows (harvested
+  // ones already carry it from the note), and mark what's already been filed.
+  const rows = useMemo(() => {
+    const parsed = sortRows(parseActivityRows(wf.output));
+    return parsed.map((r) => {
+      const agreements = r.agreements ||
+        (account ? suggestAgreements(`${r.title} ${r.comments}`, account).map((g) => `${g.type} ${g.number}`).join(", ") : "");
+      return { ...r, agreements, filed: filed.has(rowKey(r)) };
+    });
+  }, [wf.output, account, filed]);
+
+  // Rows the user already approved and saved, fed back as classification and
+  // voice examples on the next run.
+  const exampleRows = useMemo(() => {
+    const out = [];
+    for (const item of wf.history || []) {
+      for (const r of parseActivityRows(item.content || "")) {
+        if (r.title && r.comments && !r.review) out.push({ type: r.type, subtype: r.subtype, title: r.title, comments: r.comments });
+        if (out.length >= 8) return out;
+      }
+    }
+    return out;
+  }, [wf.history]);
 
   // note title (lowercased) -> origin, so the table can badge cross-folder sources
   const sourceInfo = useMemo(() => {
@@ -95,9 +131,67 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
     return map;
   }, [wf.loadedNotes]);
 
+  useEffect(() => { exampleRowsRef.current = exampleRows; }, [exampleRows]);
+
+  // Harvest hybrid: notes saved through New Note already end with an approved
+  // "## SFDC Activity Entry" — take those verbatim and only pay Claude for the
+  // notes that don't have one. Harvested rows can't be misattributed because
+  // no model rewrote them.
+  const partition = useMemo(
+    () => partitionNotes(wf.activeNotes || []),
+    [wf.activeNotes]
+  );
+
+  function handleGenerate() {
+    const { harvested, needsGeneration } = partition;
+    wf.handleSynthesize({
+      notesOverride: needsGeneration,
+      seedRaw: rowsToNDJSON(harvested),
+    });
+  }
+
+  function toggleRowFiled(i) {
+    setFiled((prev) => toggleFiled(prev, rows[i]));
+  }
+
+  // Redo one row from its source note without re-running the whole report.
+  async function handleRegenerateRow(i, instruction) {
+    if (!wf.activeNotes?.length) {
+      alert("Re-scan the folder first — the source notes are needed to regenerate a row.");
+      return;
+    }
+    setRegenIndex(i);
+    try {
+      const res = await apiFetch("/api/regenerate-row", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          row: rows[i],
+          notes: wf.activeNotes,
+          accountName,
+          allAccounts: settings.accounts || [],
+          replacements: settings.replacements || [],
+          corrections: settings.corrections || [],
+          restoredIds: [...wf.restoredIds],
+          instruction: instruction || "",
+          model: wf.model,
+          apiKey: settings.apiKey || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Regeneration failed");
+      const next = rows.map((r, idx) => (idx === i ? { ...data.row } : r));
+      wf.setOutput(rowsToNDJSON(next));
+    } catch (e) {
+      alert(`Could not regenerate that row: ${e.message}`);
+    } finally {
+      setRegenIndex(null);
+    }
+  }
+
   function updateRow(i, patch) {
     const next = rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
-    wf.setOutput(rowsToNDJSON(next));
+    wf.setOutput(rowsToNDJSON(next.map(({ filed: _filed, ...r }) => r)));
   }
 
   function handleRangeChange(start, end) {
@@ -114,16 +208,26 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
     });
   }
 
-  // Second-pass audit: check each row against its cited source.
+  // Second-pass audit: check each row against its cited source. Harvested
+  // rows are skipped — they came verbatim from an SFDC entry the user already
+  // approved, so there is no model claim to audit and paying to re-check them
+  // only risks a false failure.
   async function handleVerify() {
     if (!rows.length || !wf.activeNotes?.length) return;
+    const auditable = rows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.origin !== "note");
+    if (!auditable.length) {
+      alert("Every row came straight from an approved note section — nothing to verify.");
+      return;
+    }
     setVerifying(true);
     try {
       const res = await fetch("/api/verify-rows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rows,
+          rows: auditable.map(({ row }) => row),
           notes: wf.activeNotes,
           accountName,
           allAccounts: settings.accounts || [],
@@ -136,8 +240,15 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Verification failed");
       const reps = settings.replacements || [];
+      // Verdict indices refer to positions in `auditable`; translate back to
+      // positions in the full row list.
+      const verdictByRow = new Map();
+      for (const v of data.verdicts || []) {
+        const target = auditable[v.index];
+        if (target) verdictByRow.set(target.index, v);
+      }
       const next = rows.map((r, i) => {
-        const v = (data.verdicts || []).find((x) => x.index === i);
+        const v = verdictByRow.get(i);
         if (!v) return r;
         const reason = reps.length ? reverseReplacements(v.reason || "", reps) : v.reason || "";
         return { ...r, verify: v.supported ? "passed" : "failed", verifyReason: reason };
@@ -292,14 +403,23 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
 
           {wf.activeNotes?.length > 0 && wf.showConfirm && (
             <PreflightPanel
-              intro={<>Sending <strong>{wf.activeNotes.length}</strong> notes to Claude to generate an EA Engagement Activity Report table.</>}
+              intro={partition.harvested.length ? (
+                <>
+                  <strong>{partition.harvested.length}</strong> note{partition.harvested.length !== 1 ? "s" : ""} already {partition.harvested.length !== 1 ? "have" : "has"} an approved SFDC entry — those rows are taken as-is, no AI involved.
+                  {partition.needsGeneration.length > 0
+                    ? <> Sending the remaining <strong>{partition.needsGeneration.length}</strong> to Claude.</>
+                    : <> Nothing left to send, so this run is free.</>}
+                </>
+              ) : (
+                <>Sending <strong>{wf.activeNotes.length}</strong> notes to Claude to generate an EA Engagement Activity Report table.</>
+              )}
               notes={wf.activeNotes}
               loadCounts={wf.loadCounts}
               model={wf.model}
               setModel={wf.setModel}
               scrub={scrub}
               onCancel={() => wf.setShowConfirm(false)}
-              onConfirm={() => wf.handleSynthesize()}
+              onConfirm={handleGenerate}
               synthesizing={wf.synthesizing}
             />
           )}
@@ -385,6 +505,9 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
               onVerify={handleVerify}
               verifying={verifying}
               onFlagBleed={openBleedPanel}
+              onToggleFiled={toggleRowFiled}
+              onRegenerateRow={handleRegenerateRow}
+              regenIndex={regenIndex}
             />
           )}
           {wf.synthesizing && !wf.output && (

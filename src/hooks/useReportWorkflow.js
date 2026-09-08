@@ -206,10 +206,17 @@ export function useReportWorkflow({
 
   const activeNotes = loadedNotes ? loadedNotes.filter((n) => !excludedFiles.has(n.filename)) : null;
 
-  // opts.append   — continue on top of existing raw output (resume)
-  // opts.extraBody — merged into the request body (e.g. resumeRows)
+  // opts.append        — continue on top of existing raw output (resume)
+  // opts.extraBody     — merged into the request body (e.g. resumeRows)
+  // opts.notesOverride — send this subset instead of all activeNotes (the EA
+  //                      Activity tab sends only the notes it couldn't harvest)
+  // opts.seedRaw       — NDJSON placed ahead of anything Claude produces
+  //                      (harvested rows). With a seed and nothing left to
+  //                      send, no API call is made at all.
   async function handleSynthesize(opts = {}) {
-    if (!activeNotes?.length) return;
+    const notesToSend = opts.notesOverride ?? activeNotes;
+    const seedRaw = (opts.seedRaw || "").trim();
+    if (!notesToSend?.length && !seedRaw) return;
     const controller = new AbortController();
     synthControllerRef.current = controller;
     setLastSynthesisRequest(opts);
@@ -219,8 +226,8 @@ export function useReportWorkflow({
     setShowConfirm(false);
     setPartial(false);
     if (!opts.append) {
-      rawRef.current = "";
-      setOutput("");
+      rawRef.current = seedRaw;
+      setOutput(seedRaw);
       setDroppedCount(0);
       setSummarizedCount(0);
       setRedactedCount(0);
@@ -228,7 +235,7 @@ export function useReportWorkflow({
     setVerifyFindings(null);
 
     const reps = settings.replacements || [];
-    let accumulated = opts.append ? rawRef.current + "\n" : "";
+    let accumulated = opts.append ? rawRef.current + "\n" : seedRaw ? seedRaw + "\n" : "";
     const acct = acctCtx();
 
     // Reverse pseudonyms, then hard-redact any other-account terms Claude
@@ -241,12 +248,21 @@ export function useReportWorkflow({
     };
 
     try {
+      // Everything came from approved note sections — no model call needed.
+      if (!notesToSend?.length) {
+        rawRef.current = seedRaw;
+        setOutput(finalize(seedRaw));
+        // Nothing was sent, so a cost from an earlier run would be a lie.
+        setSynthCost(null);
+        return;
+      }
+
       const res = await apiFetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          notes: activeNotes,
+          notes: notesToSend,
           apiKey: settings.apiKey || undefined,
           model,
           today: TODAY,

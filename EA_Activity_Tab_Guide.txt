@@ -51,7 +51,7 @@ STEP-BY-STEP
 2. Select the account folder you want to report on using the folder picker.
 
 3. Set your date range.
-   The default is the past 3 months. You can change the start and end
+   The default is the past 4 months. You can change the start and end
    dates, or use a quarter preset (Q1, Q2, Q3, Q4) if you are reporting
    for a specific quarter.
 
@@ -72,8 +72,16 @@ STEP-BY-STEP
 
 7. Review and edit.
    You can edit any cell directly, especially the Comments column. To
-   redo a single row without rerunning everything, click "Regenerate"
-   on that row.
+   redo a single row without rerunning everything, click the ↻ button on
+   that row — you can optionally tell it what to fix.
+
+   Rows badged "from your note" came straight from the SFDC Activity
+   Entry you already approved when saving that note. No AI rewrote them,
+   so they cannot be misattributed.
+
+   Tick a row's checkbox once you have filed it in Salesforce. That is
+   remembered, so if you run the report again the row stays greyed out
+   instead of looking like new work.
 
 8. When finished, click "Copy" to copy the Markdown table, or
    "Save to Obsidian" to write it as a file in your vault.

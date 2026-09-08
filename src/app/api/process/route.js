@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { looksSpeakerLabeled } from "@/lib/speakers";
 import { looksMultiSource, listSourceLabels } from "@/lib/transcriptSources";
+import { compactTaxonomy, SFDC_VOICE_RULES } from "@/lib/sfdcTaxonomy";
 import { assertTrustedRequest } from "@/lib/requestSafety";
 
 const SYSTEM_PROMPT = `You are an expert meeting notes specialist working for a Customer Success Manager (CSM) at NI (National Instruments). The person who recorded this meeting is that CSM — their job is driving adoption, expansion, and renewal of NI products at large customer accounts.
@@ -39,14 +40,8 @@ Only include a tag if that city/state/technology is actually discussed — not j
 const SFDC_ACTIVITY_RULES = `
 Rules for the SFDC Activity Entry section:
 
-APPROVED TYPE AND SUBTYPE OPTIONS (Subtype must come from the chosen Type's list)
-- Training or Support Webinar: Other
-- Internal Alignment and Collaboration: Account Planning, Account Team Kickoff, Product Feedback
-- Onboarding & Kick-off: EA Admin Onboarding, EA End-User Kick-off, Other
-- Strategic Relationship Management: EA Admin Sync, Escalation / Risk Management, QBR / EBR, Product Roadmap Review, SystemLink Enterprise Governance, Other
-- User Groups: Demo Day, User Group, Other
-- Value Realization and Success Stories: Case Study, Customer Testimonial, Outcome Review, SystemLink ROI Review, Other
-- Other
+APPROVED TYPE AND SUBTYPE OPTIONS — copy these strings EXACTLY into Salesforce (Subtype must come from the chosen Type's list)
+${compactTaxonomy()}
 
 CLASSIFICATION RULES
 - Identify the primary purpose of the meeting before choosing a type.
@@ -55,7 +50,7 @@ CLASSIFICATION RULES
 - Top-level "Other" type always outputs "Subtype: Other".
 - A product-led session (NI presenting/demoing) is a demo, not a User Group. "User Group" means customer-led.
 - Prefer "Account Planning" or "Other" for internal-only work, with an outcome-focused description.
-- Tie-breakers when two types fit: (1) match the primary purpose, not a topic that just came up; (2) if the meeting spans onboarding and training, classify by account stage — new/ramping accounts default to Onboarding & Kick-off; (3) if risk or escalation is the reason for the meeting, Escalation / Risk Management wins over a routine sync; (4) if still tied, pick the type reflecting the strategic outcome.
+- Tie-breakers when two types fit: (1) match the primary purpose, not a topic that just came up; (2) if the meeting spans onboarding and training, classify by account stage — new/ramping accounts default to Onboarding & Kick-Off; (3) if risk or escalation is the reason for the meeting, Escalation/Risk Management wins over a routine sync; (4) if still tied, pick the type reflecting the strategic outcome.
 
 SUMMARY/NOTES RULES
 - Exactly three labeled lines, in this order: Summary, Outcomes, Next steps. No other headings or sections inside this block.
@@ -65,13 +60,7 @@ SUMMARY/NOTES RULES
 
 VOICE — this should read like a person typed it in a hurry, not like a report
 - Persona: a CSM in their late twenties, a couple years into the role, engineering degree, banging out notes right after the call. Comfortable with technical terms, no need to spell out basics.
-- Past tense, and no first person ("I"/"we") — but that does NOT mean passive voice. Drop the subject instead. Write "Walked Gokul through the migration plan" or "Flagged the re-ingestion risk", NEVER "The migration plan was reviewed" or "A discussion was held regarding...". These subject-dropped fragments are how people actually type notes and are the preferred style here.
-- Active voice with real people as the subject: "Gokul pushed back on the August date", not "Concerns were raised regarding the August date".
-- Contractions are good ("wasn't", "didn't", "they're", "he's"). Short sentences are good. Fragments are fine — not every sentence needs a subject.
-- Say the plain thing. "They're worried the timeline slips" beats "The customer expressed apprehension regarding potential schedule risk".
-- Never use: synergy, leverage, circle back, touch base, bandwidth, actionable, value-add, deep dive, holistic, robust, seamless, utilize, facilitate, ecosystem, "in order to", "as it relates to", "per our discussion", "alignment" as a noun.
-- Kill nominalizations — "discussed" not "held a discussion", "decided" not "made a decision", "agreed" not "reached agreement".
-- No throat-clearing openers. Never start with "The purpose of this meeting was...", "This call covered...", or "During the discussion...". Open with the actual substance.
+${SFDC_VOICE_RULES}
 
 VOICE EXAMPLE — match this register exactly
 Too formal (never write like this):
