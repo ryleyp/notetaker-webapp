@@ -31,6 +31,7 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
   const reviewCount = rows.filter((r) => r.review).length;
   const failedCount = rows.filter((r) => r.verify === "failed").length;
   const harvestedCount = rows.filter((r) => r.origin === "note").length;
+  const auditableCount = rows.length - harvestedCount;
   const filedCount = rows.filter((r) => r.filed).length;
 
   // Look up where a row's cited source note came from (cross-folder = risky).
@@ -109,11 +110,15 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
           {onVerify && rows.length > 0 && !streaming && (
             <button
               onClick={onVerify}
-              disabled={verifying}
-              className="btn-secondary text-xs px-3 py-1.5"
-              title="Second-pass audit: a fast model checks each row against its cited source to confirm it's genuinely this account's activity"
+              disabled={verifying || auditableCount === 0}
+              className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-40"
+              title={
+                auditableCount === 0
+                  ? "Nothing to audit — every row came straight from an SFDC entry you already approved"
+                  : "Second-pass audit: a fast model checks each generated row against its cited source to confirm it's genuinely this account's activity"
+              }
             >
-              {verifying ? "Verifying…" : "Verify vs sources"}
+              {verifying ? "Verifying…" : auditableCount === rows.length ? "Verify vs sources" : `Verify ${auditableCount} generated`}
             </button>
           )}
           <button onClick={() => copy(markdown, "all")} className="btn-secondary text-xs px-3 py-1.5">
@@ -258,10 +263,7 @@ export default function ActivityPreview({ rows, rawText, streaming, onUpdateRow,
                           )}
                           {onRegenerateRow && (
                             <button
-                              onClick={() => {
-                                const note = window.prompt("Regenerate this row. Optionally say what to fix (e.g. \"wrong subtype, this was NI-led\"):", "");
-                                if (note !== null) onRegenerateRow(r, note.trim());
-                              }}
+                              onClick={() => onRegenerateRow(r)}
                               disabled={regenIndex !== null}
                               title="Redo just this row from its source note"
                               className="text-gray-300 hover:text-obsidian-600 text-xs disabled:opacity-40"

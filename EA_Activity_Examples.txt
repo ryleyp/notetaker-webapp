@@ -1,7 +1,12 @@
 EA ENGAGEMENT TYPE — EXAMPLE REFERENCE
 =======================================
-Fill in the EXAMPLES sections below with real activities from your notes.
-These will be used to improve Claude's classification accuracy.
+
+*** SUPERSEDED — you no longer need to fill this in. ***
+
+The app now feeds your own previously approved rows back into the prompt
+automatically as classification and voice examples, pulled from the EA
+Activity report history. Nothing reads this file. It is kept only as a
+reference for the type/subtype structure.
 
 
 TYPE: Entitlement Awareness & Promotion

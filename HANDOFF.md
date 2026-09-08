@@ -1,85 +1,130 @@
 # Notetaker Webapp — Context Handoff
 
-A Next.js 14 (App Router) web app that turns Obsidian meeting notes + transcripts into
-structured notes and quarterly account summaries using the Anthropic Claude API.
+A Next.js 14 (App Router) local web app that turns meeting transcripts into
+structured Obsidian notes, Salesforce-ready activity entries, and quarterly
+account summaries using the Anthropic Claude API.
 
 ## How to run
 ```bash
 git pull && npm install && npm run dev   # http://localhost:3000
-npm test                                  # 23 vitest unit tests
+npm test                                  # 181 vitest unit tests
 ```
+Or double-click `Start Notetaker.command` in Finder — it installs deps on first
+run, starts the server, and opens the browser on whichever port Next binds.
 
 ## Git / branches
-- Default working branch: `claude/obsidian-meeting-notes-app-lFN0q`
-- `main` and that branch are kept in sync (every change is committed to `main`,
-  then the feature branch is hard-reset to `main` and force-pushed).
-- Remote default branch was the `claude/...` branch — fresh clones check that out.
-  Both branches now hold identical, current code.
+- `main` and `claude/obsidian-meeting-notes-app-lFN0q` are kept at the same
+  commit; push to both after every change.
+- Remote: `github.com/ryleyp/notetaker-webapp`. A second repo,
+  `ryleyp/obsidian-notetaker`, exists but is NOT reachable from Claude Code
+  web sessions (the git proxy allowlists one repo per session).
 
-## Three tabs (Header.jsx)
-1. **New Note** — paste/upload a transcript → sanitize/pseudonymize → Claude generates
-   Markdown notes → save into a chosen Obsidian folder (`src/app/page.js`). The generated
-   note ends with a **## SFDC Activity Entry** section (Type / Subtype / Summary-Outcomes-
-   Next steps) produced in the *same* single streamed completion for copy-paste into
-   Salesforce — see Key architecture.
-2. **Account Status** — pick an account folder, scan the past quarter's notes, generate a
-   5-pillar account health summary (`src/components/AccountStatus.jsx`).
-3. **SL Status** — same as Account Status but filtered to SystemLink-related notes, with a
-   SystemLink-specific prompt (`src/components/SystemLinkStatus.jsx`).
+## Four tabs (Header.jsx)
+1. **New Note** — paste/upload/import a transcript → optional speaker
+   detection → sanitize/pseudonymize → Claude generates the note → save into a
+   chosen Obsidian folder (`src/app/page.js`).
+2. **Account Status** — pick an account folder, scan the quarter's notes,
+   generate a 5-pillar health summary (`AccountStatus.jsx`).
+3. **SL Status** — same, filtered to SystemLink notes with its own prompt.
+4. **EA Activity** — scan a date range, produce a Salesforce-ready activity
+   table (`CSMActivityReport.jsx`). See below — this one is not a plain
+   generate.
+
+## New Note pipeline (`src/app/api/process/route.js`)
+One `client.messages.stream` call produces the whole note. Sections: tag line,
+Executive Summary, optional ⚠️ conflict sections, Meeting Notes, CS Takeaways,
+Sentiment & Vibe, Action Items, Next Steps, and finally **## SFDC Activity
+Entry**. That last section is what the EA Activity tab later harvests, so its
+shape matters — do not rename it casually.
+
+Inputs that shape the prompt:
+- **Additional Context box** (`MeetingDetails.jsx`) — background *and* the
+  CSM's own handwritten notes. Treated as a trusted second source, never saved
+  as its own file. Direct contradictions with the transcript get surfaced in a
+  "⚠️ Conflicts With Your Notes" section.
+- **Multiple transcripts** (`src/lib/transcriptSources.js`) — two recordings of
+  the same meeting (Teams + voice memo) are combined into one labeled document
+  and reconciled into a single note; conflicts surface under "⚠️ Source
+  Conflicts". A single source stays plain text, so the common path is
+  unchanged. Speaker detection is disabled while multiple sources are loaded
+  (it would re-segment both copies into a doubled transcript).
+- **Speaker detection** (`/api/detect-speakers`, `src/lib/speakers.js`) —
+  best-effort inference of speaker turns from conversational cues, since Apple
+  dictation has no diarization. Always reviewed before it's applied.
+
+On save: the note is written to the vault, CS-owned todos are appended to a
+weekly `Todos/` file, and the SFDC section is appended to a weekly
+`Reports/<monday> - SFDC Activity Report.md` (`/api/sfdc-report`).
+
+## EA Activity: harvest, don't regenerate
+The key idea. Notes saved through New Note already end with an SFDC entry the
+user approved, so the tab **parses those rows verbatim** and only sends Claude
+the notes that lack one (`src/lib/sfdcSection.js`). Harvested rows are free,
+instant, and cannot be misattributed because no model rewrote them. When every
+note is harvestable, no API call is made at all.
+
+- **Cross-folder notes are never harvested.** They were pulled in only for
+  mentioning an alias, so their SFDC entry may belong to another account. They
+  go through generation, where the attribution rules apply. This is a load-
+  bearing rule — removing it reintroduces silent account bleed.
+- **Filed tracking** (`src/lib/filedRows.js`) — per-row "filed in SFDC",
+  keyed on date+title so it survives regeneration.
+- **Per-row regenerate** (`/api/regenerate-row`) — redo one row from its
+  source, optionally told what to fix.
+- **Few-shot** — previously approved rows from history are fed back as
+  classification and voice examples. (`EA_Activity_Examples.txt` is a legacy
+  empty template that nothing reads.)
+- **Verify pass** (`/api/verify-rows`) audits only *generated* rows; harvested
+  ones have no model claim to check.
+
+## One SFDC taxonomy (`src/lib/sfdcTaxonomy.js`)
+New Note and EA Activity write into the same Salesforce picklist, so both
+render Type/Subtype from this one module using the spellings Salesforce shows
+(`Escalation/Risk Management`, `QBRs/EBRs`, `SLE Governance`, `Demo Days`).
+`normalizePair()` maps legacy spellings forward so old notes and history can't
+reintroduce a bad value. `SFDC_VOICE_RULES` is shared too — both writers land
+in the same Comment box, so they sound like the same person: past tense, no
+first person but **no passive voice either** (subject-dropped fragments like
+"Walked Gokul through the plan"), contractions fine, no corporate filler.
 
 ## Key architecture
-- **Accounts & aliases** (`src/lib/accounts.js`): `DEFAULT_ACCOUNTS` maps each account to
-  name aliases (e.g. Northrop → `northrop`, `ngc`). Editable in Settings. `detectAccount()`
-  resolves the picked folder → account; `textHasAlias()` does whole-word matching.
-- **Privacy** (`src/lib/sanitize.js`): `applyCorrections` → `applyReplacements` (real→alias)
-  before sending to Claude, `reverseReplacements` (alias→real) on the way back. Word-boundary
-  regex avoids alias collisions (ORG_1 vs ORG_12).
-- **Durable config**: two files written via `/api/config` —
-  `notetaker-config.json` (accounts + corrections, safe to sync) and
-  `notetaker-glossary.json` (replacements w/ real names, sensitive).
-- **Note loading** (`src/app/api/notes/route.js`): returns the picked folder's notes
-  ("obsidian") plus cross-folder notes that mention an account alias ("cross-vault").
-  **Skips any folder whose name contains "transcript" or "todo".** Transcript archive
-  support was fully removed.
-- **Vault scan** (`src/app/api/scan-vault/route.js`): all-time account mention scan,
-  folded into Account Status (runs in parallel on Scan Folder).
-- **Note generation** (`src/app/api/process/route.js`): one `client.messages.stream` call.
-  `buildPrompt` asks for tag line, Executive Summary, Meeting Notes, CS Takeaways, Action
-  Items, Next Steps, and finally a **## SFDC Activity Entry** section. The SFDC rules live in
-  the `SFDC_ACTIVITY_RULES` block (approved Type→Subtype taxonomy, classification tie-breakers,
-  and a CSM persona/voice guide: past tense, no first person, plain non-jargony language,
-  ~100-120 words / ≤800 chars, Summary/Outcomes/Next steps only). It is NOT a second API call —
-  it is the last section of the same completion, so the existing sanitize/reverse, save, and
-  `NotesPreview` rendering all work unchanged. `max_tokens` bumped to 9216 to fit it.
+- **Accounts & aliases** (`src/lib/accounts.js`): `DEFAULT_ACCOUNTS` maps each
+  account to aliases, exclusion keywords, and EA/EP agreement numbers.
+  `detectAccount()` resolves folder → account; `textHasAlias()` does whole-word
+  matching; `suggestAgreements()` matches EA/EP numbers to a transcript by
+  keyword.
+- **Privacy** (`src/lib/sanitize.js`): `applyCorrections` → `applyReplacements`
+  (real→alias) before sending, `reverseReplacements` on the way back. Word-
+  boundary regex avoids alias collisions (ORG_1 vs ORG_12).
+- **Bleed protection** (`src/lib/scrub.js`): other-account lines are scrubbed
+  before sending, output is hard-redacted after, notes dominated by another
+  account are auto-excluded, and the user can flag a bad row to teach the
+  filter.
+- **Durable config**: `/api/config` writes `notetaker-config.json` (accounts +
+  corrections) and `notetaker-glossary.json` (replacements, sensitive) into the
+  transcripts archive path. Settings also has manual export/import.
+- **Transcript archive** (`/api/save-transcript`): saves to
+  `<Transcripts Archive Path>/<account's Archive folder>/`. Both halves are
+  editable in Settings.
+- **Shared report workflow** (`src/hooks/useReportWorkflow.js`): scan → scrub →
+  generate → verify → save, plus localStorage persistence, partial-output
+  resume, and history. `handleSynthesize` takes `notesOverride` and `seedRaw`,
+  which is how EA Activity sends only un-harvested notes.
 
 ## Synthesis (`src/app/api/synthesize/route.js`)
-- **Streams** output via SSE (`client.messages.stream`); both status tabs render text live
-  with a "Generating…" → "Ready" heading.
-- `buildSynthesisPrompt` (account) and `buildProductPrompt` (SystemLink). Both take
-  `accountName` and include **hard scoping rules**: report on the picked account ONLY,
-  never mention/compare other customers, use only the relevant parts of cross-folder notes.
-- **Model-aware token budget** (`MODEL_CONTEXT`, `fitNotes`): Sonnet 4.6 & Opus = 1M tokens,
-  Haiku = 200k. Budget = context − output − overhead, ×4 chars/token, ×0.95 safety.
-  Notes sorted newest-first; oldest dropped only if over budget. Per-note cap 300k chars on
-  1M models, 80k on 200k models. `droppedCount` surfaced to the UI.
-
-## Token-limit guidance (most recent topic)
-The cause of "notes left out" was the **default model is Haiku (200k context)**. Fixes shipped:
-- Budget now scales to the model's real context window.
-- Settings labels show context size; pre-flight warnings are model-aware and suggest Sonnet.
-- **To include the most notes: pick Sonnet 4.6 in Settings (1M context).**
-- Possible future work if even 1M isn't enough: map-reduce summarization (summarize note
-  batches, then synthesize the summaries) so nothing is ever dropped.
+Streams via SSE. `buildSynthesisPrompt` (account), `buildProductPrompt`
+(SystemLink), `buildCSMActivityPrompt` (EA Activity NDJSON rows). Model-aware
+token budget: Sonnet 4.6 and Opus = 1M context, Haiku = 200k. Notes over budget
+are map-reduce summarized rather than dropped. **Pick Sonnet for the most
+coverage.**
 
 ## Settings (`src/components/SettingsPanel.jsx`)
-Vault path, transcripts archive path, API key, model selector (Haiku/Sonnet), glossary
-replacements, common corrections, and the per-account editor (name / archive folder /
-aliases). Vault path must be the **plain** path — no shell escaping/backslashes.
+Vault path, transcripts archive path, API key, model, glossary replacements,
+common corrections, per-account editor (name / archive folder / aliases /
+keywords / EA-EP numbers), keyword scanner, and config export/import. Vault
+path must be the **plain** path — no shell escaping.
 
-## Recent commit history (newest first)
-- Model-aware synthesis token budget (drop fewer notes)
-- Require account-name match for cross-folder SL notes
-- Scope account/SL summaries to the selected account only
-- Stream synthesis output token-by-token with live progress
-- Exclude ToDo folders from account summary cross-vault search
-- Remove transcript archive support entirely from notes API and UI
+## Gotchas
+- Container sessions have repeatedly reverted the checkout to an old commit.
+  `origin/main` is the source of truth; fast-forward rather than re-doing work.
+- `node_modules` disappears with those resets — `npm install` before testing.

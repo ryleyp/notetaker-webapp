@@ -73,7 +73,9 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
   const [rangeEnd, setRangeEnd] = useState(TODAY);
   const [verifying, setVerifying] = useState(false);
   const [filed, setFiled] = useState(() => new Set());
-  const [regenIndex, setRegenIndex] = useState(null);
+  const [regenIndex, setRegenIndex] = useState(null); // row currently regenerating
+  const [regenRow, setRegenRow] = useState(null);     // row whose panel is open
+  const [regenNote, setRegenNote] = useState("");
   const [bleedRow, setBleedRow] = useState(null); // row index being flagged
   const [bleedAccount, setBleedAccount] = useState("");
   const [bleedTerms, setBleedTerms] = useState("");
@@ -154,12 +156,19 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
     setFiled((prev) => toggleFiled(prev, rows[i]));
   }
 
-  // Redo one row from its source note without re-running the whole report.
-  async function handleRegenerateRow(i, instruction) {
+  function openRegenPanel(i) {
     if (!wf.activeNotes?.length) {
       alert("Re-scan the folder first — the source notes are needed to regenerate a row.");
       return;
     }
+    setRegenRow(i);
+    setRegenNote("");
+  }
+
+  // Redo one row from its source note without re-running the whole report.
+  async function handleRegenerateRow(i, instruction) {
+    if (!wf.activeNotes?.length) return;
+    setRegenRow(null);
     setRegenIndex(i);
     try {
       const res = await apiFetch("/api/regenerate-row", {
@@ -217,10 +226,7 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
     const auditable = rows
       .map((row, index) => ({ row, index }))
       .filter(({ row }) => row.origin !== "note");
-    if (!auditable.length) {
-      alert("Every row came straight from an approved note section — nothing to verify.");
-      return;
-    }
+    if (!auditable.length) return;
     setVerifying(true);
     try {
       const res = await fetch("/api/verify-rows", {
@@ -456,6 +462,36 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
             streaming={wf.synthesizing}
             redactedCount={wf.redactedCount}
           />
+          {regenRow !== null && rows[regenRow] && (
+            <div className="rounded-lg border border-obsidian-200 bg-obsidian-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-obsidian-800">
+                Regenerate row: "{rows[regenRow].title}"
+              </p>
+              <p className="text-xs text-obsidian-700">
+                Rewrites just this row from its source note. Optionally say what to fix — leave
+                blank for a straight redo.
+                {rows[regenRow].origin === "note" && " Heads up: this row came from an SFDC entry you already approved, so regenerating replaces your wording with Claude's."}
+              </p>
+              <div className="flex flex-wrap gap-2 items-center">
+                <input
+                  type="text"
+                  value={regenNote}
+                  onChange={(e) => setRegenNote(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRegenerateRow(regenRow, regenNote.trim()); }}
+                  placeholder='e.g. "wrong subtype — this was NI-led, so Demo Days"'
+                  className="input flex-1 text-xs py-1.5 min-w-64"
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleRegenerateRow(regenRow, regenNote.trim())}
+                  className="btn-primary text-xs px-3 py-1.5"
+                >
+                  Regenerate
+                </button>
+                <button onClick={() => setRegenRow(null)} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
+              </div>
+            </div>
+          )}
           {bleedRow !== null && rows[bleedRow] && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
               <p className="text-xs font-semibold text-red-800">
@@ -506,7 +542,7 @@ export default function CSMActivityReport({ settings, onSettingsClick, onAccount
               verifying={verifying}
               onFlagBleed={openBleedPanel}
               onToggleFiled={toggleRowFiled}
-              onRegenerateRow={handleRegenerateRow}
+              onRegenerateRow={openRegenPanel}
               regenIndex={regenIndex}
             />
           )}
